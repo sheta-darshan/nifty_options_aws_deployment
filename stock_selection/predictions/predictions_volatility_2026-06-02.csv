@@ -1,0 +1,4 @@
+Symbol,Probability (%),Model Type,Test Precision,Verdict
+ADANIENSOL,34.900001525878906,xgboost,0.686,AVOID
+ADANIGREEN,31.8,xgboost,0.642,AVOID
+ALKEM,7.1,xgboost,0.533,AVOID

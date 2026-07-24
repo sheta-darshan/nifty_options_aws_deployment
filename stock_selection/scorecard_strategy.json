@@ -1,0 +1,822 @@
+{
+    "360ONE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ABB": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ABCAPITAL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ADANIENSOL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ADANIENT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ADANIGREEN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ADANIPORTS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ALKEM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "AMBER": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "AMBUJACEM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ANGELONE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "APLAPOLLO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "APOLLOHOSP": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ASHOKLEY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ASIANPAINT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ASTRAL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "AUBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "AUROPHARMA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "AXISBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BAJAJ-AUTO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BAJAJFINSV": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BAJFINANCE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BANDHANBNK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BANKBARODA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BANKINDIA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BDL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BEL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BHARATFORG": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BHARTIARTL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BHEL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BIOCON": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BLUESTARCO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BOSCHLTD": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BPCL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BRITANNIA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "BSE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CAMS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CANBK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CDSL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CGPOWER": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CHOLAFIN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CIPLA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "COALINDIA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "COFORGE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "COLPAL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CONCOR": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CROMPTON": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "CUMMINSIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DABUR": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DALBHARAT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DELHIVERY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DIVISLAB": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DIXON": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DLF": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DMART": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "DRREDDY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "EICHERMOT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ETERNAL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "EXIDEIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "FEDERALBNK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "FINNIFTY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "FORTIS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "GAIL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "GLENMARK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "GMRAIRPORT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "GODREJCP": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "GODREJPROP": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "GRASIM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HAL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HAVELLS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HCLTECH": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HDFCAMC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HDFCBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HDFCLIFE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HEROMOTOCO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HINDALCO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HINDPETRO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HINDUNILVR": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HINDZINC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "HUDCO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ICICIBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ICICIGI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ICICIPRULI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "IDEA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "IDFCFIRSTB": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "IEX": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "INDHOTEL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "INDIANB": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "INDIGO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "INDUSINDBK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "INDUSTOWER": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "INFY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "INOXWIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "IOC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "IRCTC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "IREDA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "IRFC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ITC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "JINDALSTEL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "JIOFIN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "JSWENERGY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "JSWSTEEL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "JUBLFOOD": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "KALYANKJIL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "KAYNES": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "KEI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "KFINTECH": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "KOTAKBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "KPITTECH": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LAURUSLABS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LICHSGFIN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LICI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LODHA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LTF": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LTIM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "LUPIN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "M&M": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MANAPPURAM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MANKIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MARICO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MARUTI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MAXHEALTH": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MAZDOCK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MCX": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MFSL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MPHASIS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "MUTHOOTFIN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NATIONALUM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NAUKRI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NBCC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NESTLEIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NHPC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NIFTY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NMDC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NTPC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NUVAMA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "NYKAA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "OBEROIRLTY": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "OFSS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "OIL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ONGC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PAGEIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PATANJALI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PAYTM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PERSISTENT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PETRONET": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PFC": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PGEL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PHOENIXLTD": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PIDILITIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PIIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PNBHOUSING": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PNB": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "POLICYBZR": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "POLYCAB": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "POWERGRID": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "POWERINDIA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PPLPHARMA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "PRESTIGE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "RBLBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "RECLTD": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "RELIANCE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "RVNL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SAIL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SAMMAANCAP": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SBICARD": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SBILIFE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SBIN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SENSEX": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SHREECEM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SHRIRAMFIN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SIEMENS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SOLARINDS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SONACOMS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SRF": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SUNPHARMA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SUPREMEIND": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SUZLON": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "SYNGENE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TATACONSUM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TATAELXSI": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TATAPOWER": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TATASTEEL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TATATECH": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TCS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TECHM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TIINDIA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TITAN": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TMPV": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TORNTPHARM": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TORNTPOWER": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TRENT": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "TVSMOTOR": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ULTRACEMCO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "UNIONBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "UNITDSPR": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "UNOMINDA": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "UPL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "VBL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "VEDL": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "VOLTAS": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "WIPRO": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "YESBANK": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    },
+    "ZYDUSLIFE": {
+        "status": "skipped",
+        "reason": "Lack of target class diversity in splits (train/val/test)"
+    }
+}

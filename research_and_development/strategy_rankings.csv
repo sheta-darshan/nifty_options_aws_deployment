@@ -1,0 +1,7 @@
+Strategy,Trades,Win Rate (%),Profit Factor,Gross PnL (Rs.),Charges (Rs.),Net PnL (Rs.),Avg PnL/Trade,Max Win,Max Loss
+Strategy 5 (RSI/EMA/Compression),4514,53.9,1.79,1031274.73,245636.63,785638.1,174.04,13829.46,-3651.89
+Strategy 4 (WMA/SMA Cross),4776,46.5,1.37,724814.55,259422.97,465391.58,97.44,14814.73,-3789.8
+Strategy 6 (New Strategy),3316,48.3,1.19,401645.6,180837.01,220808.59,66.59,8417.27,-4592.54
+Strategy 3 (Triple Momentum),4750,45.3,1.18,474625.25,257722.8,216902.45,45.66,5998.0,-2574.23
+Strategy 1 (Trend Supertrend),2836,32.4,0.59,-257502.87,156437.12,-413939.99,-145.96,4372.03,-2252.61
+Strategy 2 (Pullback Momentum),4044,31.9,0.59,-369820.56,222403.52,-592224.08,-146.45,5576.38,-2252.61

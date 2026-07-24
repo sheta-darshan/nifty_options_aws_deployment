@@ -1,0 +1,92 @@
+# ===========================
+# SECURITY - NEVER COMMIT
+# ===========================
+.env
+accounts.json
+order_state.json
+order_state.bak.json
+renew_tokens.py
+
+# ===========================
+# LARGE DATA FILES
+# ===========================
+backtest_data/
+bhavcopy_cache/
+dhanhq_cache_*.csv
+dhanhq_master_cache.csv
+dhanhq_securities_compact.csv
+upstox_instruments.csv
+
+# ===========================
+# BACKTEST RESULTS & OUTPUTS
+# ===========================
+backtest_results*.csv
+Backtest_results/
+optimization_results/
+experiments_tracker.csv
+failed_trades.csv
+live_trades_multi_index.csv
+multi_instrument_results.csv
+nifty_30m_stats.csv
+
+# ===========================
+# CACHES
+# ===========================
+__pycache__/
+*.pyc
+*.pyo
+fno_inception_cache.json
+holidays_cache.json
+lot_size_history.json
+strike_step_history.json
+
+# ===========================
+# BACKUPS
+# ===========================
+backups/
+*.bak
+instruments.json.bak
+
+# ===========================
+# TEST / SCRATCH FILES
+# ===========================
+scratch/
+Test_files/
+test_trades_log.csv
+gemini-code-*.py
+
+# ===========================
+# GENERATED DATA
+# ===========================
+stock_selection/data/
+
+# ===========================
+# IDE & OS
+# ===========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ===========================
+# Virtual Environment
+# ===========================
+venv/
+.venv/
+env/
+
+# ===========================
+# Logs
+# ===========================
+*.log
+logs/
+
+# ===========================
+# Instruments config (contains live strategy params)
+# Keep instruments.json tracked but use .env.example pattern
+# ===========================
+instruments_config.csv

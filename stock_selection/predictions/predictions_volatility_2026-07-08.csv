@@ -1,0 +1,4 @@
+Symbol,Probability (%),Model Type,Test Precision,Verdict
+RELIANCE,48.1,random_forest,0.21494841410527746,SELECT
+TCS,35.3,random_forest,0.16303686949754365,SELECT
+HDFCBANK,33.3,random_forest,0.16764410587751838,AVOID

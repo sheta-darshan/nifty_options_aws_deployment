@@ -1,0 +1,18 @@
+[
+    {
+        "name": "Primary_Account",
+        "client_id": "YOUR_CLIENT_ID",
+        "access_token": "YOUR_JWT_ACCESS_TOKEN",
+        "enabled": true,
+        "is_master": true,
+        "allowed_instruments": [
+            "NIFTY"
+        ],
+        "allowed_actions": [
+            "SELL"
+        ],
+        "global_multiplier": 1,
+        "source_ip": "",
+        "proxy_url": ""
+    }
+]
