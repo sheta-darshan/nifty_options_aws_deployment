@@ -184,8 +184,14 @@ class SimulationEngine:
             inst = instruments.get(instrument_name, {})
             
             # Apply strategy-specific overrides if active
-            if self.strategy:
-                overrides = inst.get("strategy_overrides", {}).get(self.strategy.name, {})
+            strat_name = self.strategy.name if self.strategy else getattr(self.config, 'active_strategy', None)
+            if not strat_name:
+                for i in range(1, 19):
+                    if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
+                        strat_name = f"Strategy_{i}"
+                        break
+            if strat_name:
+                overrides = inst.get("strategy_overrides", {}).get(strat_name, {})
                 if isinstance(overrides, dict) and overrides:
                     for k, v in overrides.items():
                         inst[k] = v
@@ -1550,9 +1556,11 @@ class SimulationEngine:
         n = len(self.df_spot)
         time_1500 = dt_time(15, 00)
         
-        current_date = None
-        daily_trade_count = 0
+        self.current_date = None
+        self.daily_trade_count = 0
+        self.daily_sl_count = 0
         daily_limit = self.inst_config.get('daily_limit', 5)
+        max_daily_sl = self.inst_config.get('max_daily_sl', 1)
         
         strike_step = self.inst_config.get('strike_step', 100)
         strike_offset = self.inst_config.get('strike_offset', 0)
@@ -1571,10 +1579,11 @@ class SimulationEngine:
             current_time = times[i]
             trade_date = timestamp.date()
             
-            # Reset daily trade count on date change
-            if trade_date != current_date:
-                current_date = trade_date
-                daily_trade_count = 0
+            # Reset daily trade count & SL circuit breaker on date change
+            if trade_date != self.current_date:
+                self.current_date = trade_date
+                self.daily_trade_count = 0
+                self.daily_sl_count = 0
                 
             # 1. Manage Active Trades (Check SL / TP / Trailing)
             if self.active_trades:
@@ -1668,6 +1677,14 @@ class SimulationEngine:
                 continue
                 
             # 3. Look for new entries (Respect daily limits and Cooldown Lockout)
+            daily_limit = self.inst_config.get('daily_limit', 5)
+            max_daily_sl = self.inst_config.get('max_daily_sl', 1)
+            
+            if self.daily_trade_count >= daily_limit:
+                continue
+            if self.daily_sl_count >= max_daily_sl:
+                continue # CIRCUIT BREAKER ACTIVE: Stop taking entries after 1st SL hit!
+                
             if self.cooldown_until and timestamp < self.cooldown_until:
                 continue
                 
@@ -1722,7 +1739,7 @@ class SimulationEngine:
                     continue
                 
                 if entry_time >= self.config.RUN_START:
-                    if daily_trade_count < daily_limit:
+                    if self.daily_trade_count < daily_limit:
                         # Check execution mode
                         execution_mode = self.inst_config.get("execution_mode", "OPTION")
                         if execution_mode == "STOCK":
@@ -1765,7 +1782,7 @@ class SimulationEngine:
                                     )
                                     if trade_dict:
                                         self.active_trades.append(trade_dict)
-                                        daily_trade_count += 1
+                                        self.daily_trade_count += 1
                                         self.cooldown_until = entry_timestamp + timedelta(seconds=280)
                             continue
                         
@@ -1925,7 +1942,7 @@ class SimulationEngine:
                                         entered_any = True
                                         
                         if entered_any:
-                            daily_trade_count += 1
+                            self.daily_trade_count += 1
                             self.cooldown_until = entry_timestamp + timedelta(seconds=280)
                             
             # Early Rejection Engine Check (Priority 8)
@@ -2576,6 +2593,9 @@ class SimulationEngine:
             excursion = round(trade['Entry_Price'] - trade['Max_Favorable_Excursion'], 2)
             
         net_pnl = gross_pnl - charges
+        
+        if "StopLoss" in exit_reason or "SL" in exit_reason:
+            self.daily_sl_count += 1
         
         exit_spot = np.nan
         if self.df_spot is not None and timestamp in self.df_spot.index:

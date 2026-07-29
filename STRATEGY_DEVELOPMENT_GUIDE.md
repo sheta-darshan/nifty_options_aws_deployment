@@ -299,6 +299,44 @@ The reverse engineering process is automated via [reverse_engineer_nifty.py](fil
 
 ---
 
+## 11. Advanced Strategies (16–19) & Institutional Quant Machine Learning Pipeline
+
+SATP includes advanced quantitative strategies and machine learning integration:
+
+### Strategy 16: 18 SMMA Smooth Trend Breakout
+* **Logic**: Uses a 5-minute resampled 18-period Smoothed Moving Average (SMMA) trend band.
+* **Entry**: Triggers `BUY` on bullish crossover of 18 SMMA; `SELL` on bearish crossover.
+* **Exit**: POINTS mode (fixed SL & Target) or dynamic SMMA direction reversal.
+
+### Strategy 17: High-Conviction Opening Scalp
+* **Logic**: Opening window (09:15–09:45) volatility expansion scalp strategy.
+* **Entry**: Identifies initial candle momentum expansion using 1-minute ATR breakouts and high volume surges.
+* **Exit**: Fast scalp target (30 points) with strict 15-point stop loss.
+
+### Strategy 18: SMA Breakout with 09:45 Time Gate
+* **Logic**: Time-gated opening range SMA breakout strategy.
+* **Time Gate**: Evaluates candle patterns strictly after `09:45 AM` to allow early opening noise to settle.
+* **Entry**: Triggers breakout entry on 5-minute SMA trend confirmation.
+
+### Strategy 19: Institutional Quant Machine Learning Strategy (`Strategy_19`)
+* **Overview**: Institutional machine-learning-gated trend and opening strategy trained on 5+ years of Nifty 1-minute data (538,465 candles from 2021 to 2026).
+* **Noise Reduction**: Computes Mean Price $P_{\text{mean}} = \frac{\text{Open} + \text{High} + \text{Low} + \text{Close}}{4}$ before indicator computation to filter out high-frequency noise.
+* **Feature Engineering Matrix**:
+  - `rsi`: 9-period RSI on Mean Price
+  - `fast_ema` / `slow_wma`: 3-period EMA and 21-period WMA on RSI
+  - `wma_diff`: Fast EMA - Slow WMA difference
+  - `adx` / `dmp` / `dmn`: 14-period Directional Movement Index
+  - `atr` / `rel_atr`: 14-period ATR relative to close price
+  - `vwap_dist`: Percentage distance from intraday VWAP `(close - vwap)/vwap`
+  - `gap_pct`: Overnight gap magnitude `(open - prev_day_close)/prev_day_close`
+  - `c1_range_ratio`: Opening 5-minute Candle 1 range ratio relative to open
+  - `minute_of_day` & `day_of_week`: Intraday timing features
+* **Walk-Forward ML Classifier**: XGBoost Multi-Class Classifier trained with 5-fold TimeSeriesSplit CV.
+* **Probability Gating**: Executes trades only when model prediction probability $P_{\text{trend}} \ge 42\%$ (`min_ml_prob`), eliminating 300+ weak sideways trades.
+* **Performance**: Produced **+Rs. 106,600.86 Net Profit** with an average gain of **+$1,665.64 per trade** in multi-strategy portfolio backtesting.
+
+---
+
 ## 11. Strategy 6: Range Filter [DW] (TradingView Volatility-Gated Trend Filter)
 
 Strategy 6 is an implementation of DonovanWall's **Range Filter [DW]** TradingView indicator. It is designed to filter out minor price action noise to capture clean trends.

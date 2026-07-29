@@ -34,8 +34,9 @@ To run only a specific test class (for faster diagnostics):
 The test files reside in the `tests/` package directory:
 
 *   **`test_parameter_loader.py`**: Validates that system-wide configuration keys (such as `allowed_regimes_trend`, `allowed_regimes_vol`, and `allowed_actions` defined inside `instruments.json`) are correctly parsed and passed to strategy constructors, even when they do not exist inside the individual strategy's `get_default_params()` dictionary.
-*   **`test_signal_merging.py`**: Simulates concurrent signal generation across multiple active strategies (e.g., `Strategy_3` and `Strategy_10`) and asserts that entry/exit signals merge seamlessly without collisions or overwrites.
+*   **`test_signal_merging.py`**: Simulates concurrent signal generation across multiple active strategies (e.g., `Strategy_3`, `Strategy_10`, `Strategy_19`) and asserts that entry/exit signals merge seamlessly without collisions or overwrites.
 *   **`test_regime_filtering.py`**: Feeds mock data with pre-calculated ADX values into the strategy base class to verify that the mathematical boundaries for trend regimes (`TREND`, `RANGE`, `NEUTRAL`) correctly filter signals according to the instrument settings.
+*   **`test_strategy_level_max_active.py`**: Tests active strategy limit handling and strategy override lifecycle resolution in `SimulationEngine`.
 
 ---
 

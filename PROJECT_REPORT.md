@@ -53,6 +53,22 @@ SATP features a modular suite of technical and quantitative trading strategies:
 6. **Strategy 6 (Multi-Factor Scoring)**: Advanced multi-factor scoring system (EMA band, RSI bull/bear levels, VWAP, ADX, Candle Body Strength, Stretch Penalty, and No-Trade Zone) run on 9-minute resampled candles with breakout buffers.
 7. **Strategy 7 (Derivative Oscillator)**: Zero-crossover breakout strategy using a high-period Derivative Oscillator (RSI/EMA/SMA) computed on 1-minute candles with a 5-minute validation breakout window.
 8. **Strategy 8 (Pending / MTF Trend Pulse)**: A 3-layer confluence strategy utilizing 15-minute macro trend gates (VWAP, Hull MA, ADX), 5-minute trend structures (Supertrend, EMA stack, MACD hist), and 1-minute entry triggers (breakouts, RSI exhaustion filters, and volume surges).
+9. **Strategy 10 (Hilega Milega WMA 50 Breakout)**: Institutional Hilega Milega momentum breakout strategy using WMA 50.
+10. **Strategy 16 (18 SMMA Smooth Trend)**: Smoothed Moving Average trend breakout strategy on 5-minute resampled candles.
+11. **Strategy 17 (High-Conviction Opening Scalp)**: Opening window volatility expansion scalp strategy.
+12. **Strategy 18 (SMA Breakout with 09:45 Time Gate)**: Time-gated opening range SMA breakout strategy.
+13. **Strategy 19 (Institutional Quant Machine Learning)**: Institutional ML-Gated strategy trained on 5+ years of Nifty 1-minute data using XGBoost classifiers and Walk-Forward cross validation, yielding **+Rs. 106,600.86 Net Profit** in multi-strategy portfolio testing.
+
+---
+
+## 🤖 Institutional Quant Machine Learning Engine (`Strategy_19`)
+
+SATP features an institutional **Quantitative Machine Learning Pipeline**:
+- **Dataset**: 5+ years of 1-minute Nifty spot candles (538,465 bars from 2021 to 2026).
+- **Noise Reduction**: Computes Mean Price $P_{\text{mean}} = \frac{\text{Open} + \text{High} + \text{Low} + \text{Close}}{4}$ before indicator calculation.
+- **Multitimeframe Feature Engineering**: 5-minute RSI, EMA/WMA crossovers, ADX trend strength, VWAP distance, relative ATR, overnight gap %, C1 candle range expansion, and time-of-day features.
+- **Walk-Forward Validation**: Trained with 5-fold TimeSeriesSplit CV using XGBoost classifiers to eliminate lookahead bias and data leakage.
+- **Signal Gating**: Executes trades only when model prediction probability $P_{\text{trend}} \ge 42\%$, eliminating sideways chop trades.
 
 ---
 

@@ -2,21 +2,32 @@
 
 This guide assumes you have an AWS EC2 instance running Ubuntu/Linux.
 
-## 1. Prerequisites
+## 1. Prerequisites & Environment Setup
 Ensure you have copied the `aws_deployment` folder to your EC2 instance (e.g., inside `/home/ubuntu/`).
-Make sure Python 3.10+ and pip are installed.
 
+### A. Set Timezone to IST (CRITICAL)
 ```bash
-# Set timezone to IST (CRITICAL)
 sudo timedatectl set-timezone Asia/Kolkata
 timedatectl # Verify it shows IST
+```
 
-# Install dependencies
+### B. Install Python 3.12 & Build Virtual Environment
+SATP uses Python 3.12 for native compatibility with machine learning packages (`scikit-learn`, `xgboost`, `scipy`, `pandas-ta`).
+
+```bash
 cd /home/ubuntu/aws_deployment
-sudo apt update && sudo apt install -y python3-pip python3-venv
-python3 -m venv venv
+
+# 1. Install Python 3.12 system packages
+sudo apt update && sudo apt install -y python3.12 python3.12-venv python3.12-dev build-essential
+
+# 2. Create clean virtual environment
+python3.12 -m venv venv
+sudo chown -R ubuntu:ubuntu venv
 source venv/bin/activate
-pip install python-dotenv requests urllib3 dhanhq
+
+# 3. Upgrade pip & install requirements without caching (prevents disk-full errors)
+pip install --upgrade pip
+pip install --no-cache-dir -r requirements.txt
 ```
 
 ## 2. Environment Variables (.env)

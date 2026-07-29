@@ -102,6 +102,15 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
                     if base_k in inst_cfg:
                         params[base_k] = inst_cfg[base_k]
                         
+                # Merge strategy-specific overrides for this strategy
+                strat_overrides = inst_cfg.get("strategy_overrides", {}).get(s_name, {})
+                if not strat_overrides and s_name in inst_cfg and isinstance(inst_cfg[s_name], dict):
+                    strat_overrides = inst_cfg[s_name]
+                    
+                if isinstance(strat_overrides, dict) and strat_overrides:
+                    for k, v in strat_overrides.items():
+                        params[k] = v
+                        
             # Instantiate and generate signals
             strategy = strat.get_strategy(s_name, params)
             df_strat = strategy.generate_signals(df.copy())

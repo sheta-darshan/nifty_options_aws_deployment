@@ -18,9 +18,13 @@ class BacktestConfig:
         self.ENABLE_STRATEGY_10 = False
         self.ENABLE_STRATEGY_11 = False
         self.ENABLE_STRATEGY_12 = False
-        self.ENABLE_STRATEGY_13 = True
-        self.ENABLE_STRATEGY_14 = False
+        self.ENABLE_STRATEGY_13 = False
+        self.ENABLE_STRATEGY_14 = True
         self.ENABLE_STRATEGY_15 = False
+        self.ENABLE_STRATEGY_16 = False
+        self.ENABLE_STRATEGY_17 = False
+        self.ENABLE_STRATEGY_18 = False
+        self.ENABLE_STRATEGY_19 = True
         
         # Risk parameters useful for backtest
         self.ATR_PERIOD = 14
@@ -44,9 +48,13 @@ class BacktestConfig:
         self.CARRY_FORWARD = os.getenv("CARRY_FORWARD", "True").strip().upper() == "TRUE"
         self.USE_DYNAMIC_EXITS = os.getenv("USE_DYNAMIC_EXITS", "False").strip().upper() == "TRUE"
 
+        self.ENABLE_STRATEGY_17 = False
+        self.ENABLE_STRATEGY_18 = False
+        self.ENABLE_STRATEGY_19 = False
+        
         # Resolve active strategy parameters to prevent collision
         active_strategy = "Strategy_3"
-        for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]:
+        for i in range(1, 20):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 active_strategy = f"Strategy_{i}"
                 break

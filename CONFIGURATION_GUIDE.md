@@ -273,6 +273,29 @@ To protect your option buying capital from rapid time decay (Theta melt) and whi
 2. Configure `"block_expiry_day_trades": 1`.
 3. Save the file. The live bot will dynamically fetch the nearest expiry date from Dhan. If today is the expiry day, it will block any signals that result in buying options (BUY mode), but will allow option selling (SELL mode) signals to execute normally.
 
+### Use Case K: Machine Learning Quant Model Configuration (`Strategy_19`)
+To configure the Institutional XGBoost Machine Learning Strategy:
+1. Open **`instruments.json`** under `"NIFTY"`.
+2. Add or modify the `"Strategy_19"` strategy override block:
+   ```json
+   "Strategy_19": {
+       "timeframe": "5min",
+       "min_ml_prob": 0.42,
+       "exit_mode": "POINTS",
+       "points_sl_buy": 25.0,
+       "points_target_buy": 75.0,
+       "points_trail_buy": 0.0,
+       "points_be_buy": 0.0,
+       "points_sl_sell": 15.0,
+       "points_target_sell": 45.0,
+       "points_trail_sell": 0.0,
+       "points_be_sell": 0.0,
+       "num_lots_buy": 1,
+       "num_lots_sell": 1
+   }
+   ```
+3. **`min_ml_prob`**: Sets the minimum model confidence threshold (default: `0.42` or 42%). Higher values (e.g. `0.48`) increase trade precision by filtering out sideways chop.
+
 ---
 
 ## 🛠️ 5. Dynamic Parameter Resolution (Strike Step & Lot Size)

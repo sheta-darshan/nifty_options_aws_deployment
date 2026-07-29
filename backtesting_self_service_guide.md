@@ -301,7 +301,24 @@ To ensure the backtest simulation matches historic realities where exchanges per
 
 ---
 
-## 6. Gate Keeper Option Entry Validation System
+## 6. Multi-Strategy Combined Portfolio Backtester (`run_multi_strategy_portfolio.py`)
+
+To simulate institutional multi-strategy portfolio execution where **multiple active strategies operate concurrently** on the same asset (e.g. `Strategy_10`, `Strategy_18`, and `Strategy_19` active simultaneously on `NIFTY`):
+
+### Command Syntax
+```bash
+python run_multi_strategy_portfolio.py NIFTY -s 10 18 19 -d 365 --leg-mode BOTH
+```
+
+### Features & Capabilities
+1. **Concurrent Signal Merging**: Each strategy evaluates the market data independently and generates signals. Simultaneous signals are merged cleanly to prevent over-leveraged orders on the same strike.
+2. **Strategy-Specific Exit Rules**: Each trade retains its strategy tag (`Active_Strategy`) and executes Stop Loss, Target, and Trailing SL exits according to its strategy overrides in `instruments.json`.
+3. **Consolidated Portfolio PnL & Breakdown**: Outputs gross PnL, transaction charges, net PnL, profit factor, and a strategy-by-strategy comparative breakdown table.
+4. **Detailed CSV Export**: Saves every single trade with its triggering strategy tag to `multi_strategy_portfolio_trades.csv`.
+
+---
+
+## 7. Gate Keeper Option Entry Validation System
 
 The Gate Keeper acts as a validation filter between spot signal generation and option order execution to verify market participation and breakout strength:
 *   **Multi-Strike Check**: Evaluates ATM, ATM-1, and ATM+1 contract price, open interest (OI) velocity, and volume buildup. If `"gatekeeper_single_strike": 1` is configured, it skips the adjacent strikes and only checks the target strike.

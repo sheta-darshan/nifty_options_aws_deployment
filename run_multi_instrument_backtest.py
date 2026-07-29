@@ -106,7 +106,7 @@ def main():
     # 2. Parse command line arguments
     parser = argparse.ArgumentParser(description="Dynamic Multi-Instrument Parity Backtesting Runner")
     parser.add_argument("symbols", nargs="*", help="Instruments to backtest (e.g., NIFTY BHEL). If omitted, reads enabled from instruments.json")
-    parser.add_argument("--strategy", "-s", type=int, choices=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], help="Strategy index to run (1-14). If omitted, uses active strategy from config/env")
+    parser.add_argument("--strategy", "-s", type=int, choices=list(range(1, 20)), help="Strategy index to run (1-19). If omitted, uses active strategy from config/env")
     parser.add_argument("--leg-mode", "-l", choices=["BUY", "SELL", "BOTH"], help="Option leg execution mode (BUY, SELL, BOTH)")
     parser.add_argument("--offline", "-o", action="store_true", help="Run backtest in offline mode using preloaded ATM option files")
     parser.add_argument("--days", "-d", type=int, default=30, help="Number of days of history to backtest (default: 30)")
@@ -139,14 +139,14 @@ def main():
         
     # Align Strategy
     if args.strategy:
-        for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]:
+        for i in range(1, 20):
             setattr(config, f"ENABLE_STRATEGY_{i}", False)
         setattr(config, f"ENABLE_STRATEGY_{args.strategy}", True)
         config.apply_strategy_defaults(f"Strategy_{args.strategy}")
         
     # Detect the active strategy
     active_strat = "None"
-    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]:
+    for i in range(1, 20):
         if getattr(config, f"ENABLE_STRATEGY_{i}", False):
             active_strat = f"Strategy_{i}"
             break

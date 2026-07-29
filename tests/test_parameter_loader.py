@@ -18,6 +18,15 @@ class TestParameterLoader(unittest.TestCase):
             ENABLE_STRATEGY_8 = False
             ENABLE_STRATEGY_9 = False
             ENABLE_STRATEGY_10 = False
+            ENABLE_STRATEGY_11 = False
+            ENABLE_STRATEGY_12 = False
+            ENABLE_STRATEGY_13 = False
+            ENABLE_STRATEGY_14 = False
+            ENABLE_STRATEGY_15 = False
+            ENABLE_STRATEGY_16 = False
+            ENABLE_STRATEGY_17 = False
+            ENABLE_STRATEGY_18 = False
+            ENABLE_STRATEGY_19 = False
             DATA_INTERVAL = '1m'
             TIMEZONE = None
 

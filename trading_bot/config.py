@@ -66,8 +66,13 @@ class Config:
         self.ENABLE_STRATEGY_10 = False # Hilega milega
         self.ENABLE_STRATEGY_11 = False
         self.ENABLE_STRATEGY_12 = False
-        self.ENABLE_STRATEGY_13 = True
-        self.ENABLE_STRATEGY_14 = False
+        self.ENABLE_STRATEGY_13 = False
+        self.ENABLE_STRATEGY_14 = True
+        self.ENABLE_STRATEGY_15 = False
+        self.ENABLE_STRATEGY_16 = False
+        self.ENABLE_STRATEGY_17 = False
+        self.ENABLE_STRATEGY_18 = False
+        self.ENABLE_STRATEGY_19 = True
 
         # Strategy 1
         self.SUPERTREND_LEN = 12
@@ -133,8 +138,14 @@ class Config:
         self.SOURCE_IP = os.getenv("DHAN_SOURCE_IP", "").strip()
         self.PROXY_URL = os.getenv("DHAN_PROXY_URL", "").strip()
 
+        # Parse Strategy Enable Flags from .env
+        for i in range(1, 20):
+            env_val = os.getenv(f"ENABLE_STRATEGY_{i}", None)
+            if env_val is not None:
+                setattr(self, f"ENABLE_STRATEGY_{i}", env_val.strip().upper() == "TRUE")
+
         self.active_strategy = "Strategy_3"
-        for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]:
+        for i in range(1, 20):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 self.active_strategy = f"Strategy_{i}"
                 break
@@ -153,6 +164,9 @@ class Config:
                 setattr(self, k, v)
         except Exception:
             pass
+            
+        if strategy_name == "Strategy_12":
+            self.USE_DYNAMIC_EXITS = True
 
     def apply_strategy_instrument_overrides(self, strategy_name: str):
         """Merge strategy-specific overrides into the active instruments configurations."""

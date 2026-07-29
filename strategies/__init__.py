@@ -23,3 +23,7 @@ from . import strategy_12
 from . import strategy_13
 from . import strategy_14
 from . import strategy_15
+from . import strategy_16
+from . import strategy_17
+from . import strategy_18
+from . import strategy_19

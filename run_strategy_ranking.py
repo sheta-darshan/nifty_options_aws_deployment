@@ -39,6 +39,15 @@ def main():
         cfg.ENABLE_STRATEGY_8 = (i == 8)
         cfg.ENABLE_STRATEGY_9 = (i == 9)
         cfg.ENABLE_STRATEGY_10 = (i == 10)
+        cfg.ENABLE_STRATEGY_11 = (i == 11)
+        cfg.ENABLE_STRATEGY_12 = (i == 12)
+        cfg.ENABLE_STRATEGY_13 = (i == 13)
+        cfg.ENABLE_STRATEGY_14 = (i == 14)
+        cfg.ENABLE_STRATEGY_15 = (i == 15)
+        cfg.ENABLE_STRATEGY_16 = (i == 16)
+        cfg.ENABLE_STRATEGY_17 = (i == 17)
+        cfg.ENABLE_STRATEGY_18 = (i == 18)
+        cfg.ENABLE_STRATEGY_19 = (i == 19)
         cfg.apply_strategy_defaults(f"Strategy_{i}")
         
         # Run upgraded high-parity simulation engine
