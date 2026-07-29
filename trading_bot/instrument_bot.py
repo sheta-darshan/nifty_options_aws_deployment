@@ -28,7 +28,8 @@ from trading_bot.data_pipeline import (
     wait_for_next_candle,
     get_trade_actions,
     fetch_candle_with_retry,
-    get_today_trade_count
+    get_today_trade_count,
+    choose_calendar_spread_v2
 )
 
 # ========== THREADED INSTRUMENT BOT ==========
@@ -2147,6 +2148,60 @@ def main_loop(config: Config, logger):
                                 # ===== EXECUTE TRADE =====
                                 logger.info(f"Executing {signal.upper()} trade for {prefix}...")
                                 
+                                # Check for Strategy 20 (Math Calendar Spread)
+                                if inst_config.get("strategy_type") == "CALENDAR_SPREAD" or getattr(config, "ENABLE_STRATEGY_20", False):
+                                    spot_close = float(df_5min['close'].iloc[-1])
+                                    regime_stance = getattr(df_5min, 'regime', ['PUT_CALENDAR'])[-1] if hasattr(df_5min, 'regime') else ("PUT_CALENDAR" if signal == "SELL" else "CALL_CALENDAR")
+                                    
+                                    logger.info(f"[{prefix}] Executing Strategy 20 Calendar Spread: Stance={regime_stance}, Spot={spot_close}")
+                                    cal_legs = choose_calendar_spread_v2(api, spot_close, stance=regime_stance, instrument_config=inst_config)
+                                    
+                                    if cal_legs:
+                                        # Pre-trade margin check via Dhan API v2
+                                        scrip_list = [
+                                            {
+                                                "exchangeSegment": inst_config.get("option_segment", "NSE_FNO"),
+                                                "transactionType": leg["action"],
+                                                "quantity": leg["quantity"],
+                                                "productType": "MARGIN",
+                                                "securityId": str(leg["security_id"]),
+                                                "price": float(leg["ltp"])
+                                            } for leg in cal_legs
+                                        ]
+                                        margin_resp = api.calculate_multi_order_margin(scrip_list)
+                                        
+                                        # Staged Order Execution: Stage 1 = Long Monthly FIRST, Stage 2 = Short Weekly SECOND
+                                        long_legs = [l for l in cal_legs if l["action"] == "BUY"]
+                                        short_legs = [l for l in cal_legs if l["action"] == "SELL"]
+                                        
+                                        # Execute Long Legs First
+                                        for leg in long_legs:
+                                            resp = api.place_order(
+                                                security_id=leg["security_id"],
+                                                transaction_type="BUY",
+                                                quantity=leg["quantity"],
+                                                exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
+                                                product_type="MARGIN",
+                                                order_type="MARKET",
+                                                price=leg["ltp"]
+                                            )
+                                            logger.info(f"[{prefix}] Stage 1 Long Leg Order Executed: {leg['tag']} -> {resp}")
+                                            
+                                        # Execute Short Legs Second
+                                        for leg in short_legs:
+                                            resp = api.place_order(
+                                                security_id=leg["security_id"],
+                                                transaction_type="SELL",
+                                                quantity=leg["quantity"],
+                                                exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
+                                                product_type="MARGIN",
+                                                order_type="MARKET",
+                                                price=leg["ltp"]
+                                            )
+                                            logger.info(f"[{prefix}] Stage 2 Short Leg Order Executed: {leg['tag']} -> {resp}")
+                                            
+                                        continue
+
                                 # 1. Select Options (Pass instrument config)
                                 ce_items, pe_items = choose_option_instruments(api, signal, inst_config, logger)
                                 
