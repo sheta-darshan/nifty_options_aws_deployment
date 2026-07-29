@@ -582,3 +582,100 @@ class DhanAPIWrapper:
         except Exception as e:
             self.logger.exception(f"[SQ_OFF] Error during auto square-off: {e}")
             return []
+
+    def get_expiry_list_v2(self, underlying_scrip: int = 13, underlying_seg: str = "IDX_I") -> List[str]:
+        """
+        Fetch active option expiry dates directly via Dhan API v2 (/v2/optionchain/expirylist).
+        """
+        url = "https://api.dhan.co/v2/optionchain/expirylist"
+        headers = {
+            "access-token": self.api_token,
+            "client-id": self.client_id,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "UnderlyingScrip": int(underlying_scrip),
+            "UnderlyingSeg": underlying_seg
+        }
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
+            if resp.status_code == 200:
+                data = resp.json().get("data", [])
+                self.logger.info(f"[DHAN_API_V2] Expiry List fetched: {data[:5]} (Total {len(data)})")
+                return data
+            else:
+                self.logger.error(f"[DHAN_API_V2] Expiry List Error {resp.status_code}: {resp.text}")
+                return []
+        except Exception as e:
+            self.logger.error(f"[DHAN_API_V2] Exception during get_expiry_list_v2: {e}")
+            return []
+
+    def get_option_chain_v2(self, underlying_scrip: int = 13, underlying_seg: str = "IDX_I", expiry: str = None) -> Dict:
+        """
+        Fetch real-time Option Chain data via Dhan API v2 (/v2/optionchain).
+        Returns dictionary of strikes with LTP, security ID, and lot size.
+        """
+        url = "https://api.dhan.co/v2/optionchain"
+        headers = {
+            "access-token": self.api_token,
+            "client-id": self.client_id,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "UnderlyingScrip": int(underlying_scrip),
+            "UnderlyingSeg": underlying_seg
+        }
+        if expiry:
+            payload["Expiry"] = expiry
+            
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
+            if resp.status_code == 200:
+                return resp.json().get("data", {})
+            else:
+                self.logger.error(f"[DHAN_API_V2] Option Chain Error {resp.status_code}: {resp.text}")
+                return {}
+        except Exception as e:
+            self.logger.error(f"[DHAN_API_V2] Exception during get_option_chain_v2: {e}")
+            return {}
+
+    def calculate_multi_order_margin(self, scrip_list: List[Dict]) -> Dict:
+        """
+        Calculate combined portfolio hedge margin requirements via Dhan API v2 (/v2/margincalculator/multi).
+        scrip_list format:
+        [
+            {
+                "exchangeSegment": "NSE_FNO",
+                "transactionType": "BUY",
+                "quantity": 195,
+                "productType": "MARGIN",
+                "securityId": "12345",
+                "price": 200.0
+            }, ...
+        ]
+        """
+        url = "https://api.dhan.co/v2/margincalculator/multi"
+        headers = {
+            "access-token": self.api_token,
+            "client-id": self.client_id,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "dhanClientId": self.client_id,
+            "includePosition": True,
+            "includeOrder": True,
+            "scripList": scrip_list
+        }
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
+            if resp.status_code == 200:
+                data = resp.json()
+                self.logger.info(f"[MARGIN_V2] Multi-Order Margin Required: {data.get('totalMargin')}, Available: {data.get('availableBalance')}")
+                return data
+            else:
+                self.logger.error(f"[MARGIN_V2] Margin Calc Error {resp.status_code}: {resp.text}")
+                return {}
+        except Exception as e:
+            self.logger.error(f"[MARGIN_V2] Exception during calculate_multi_order_margin: {e}")
+            return {}
+

@@ -161,6 +161,21 @@
                 "num_lots_buy": 1,
                 "num_lots_sell": 1
             },
+            "Strategy_20": {
+                "strategy_type": "CALENDAR_SPREAD",
+                "target_long_premium": 200,
+                "target_short1_premium": 150,
+                "target_short2_premium": 450,
+                "max_strike_gap": 1000,
+                "num_lots_long": 3,
+                "num_lots_short1": 1,
+                "num_lots_short2": 1,
+                "base_covid_low": 7511.0,
+                "cagr_rate": 0.117,
+                "cagr_base_date": "2020-03-24",
+                "upper_threshold": 1.25,
+                "lower_threshold": 0.95
+            },
             "Strategy_15": {
                 "OPENING_PATTERN_FILTER": true,
                 "DYNAMIC_TIMING_MODE": true,

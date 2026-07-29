@@ -73,6 +73,7 @@ class Config:
         self.ENABLE_STRATEGY_17 = False
         self.ENABLE_STRATEGY_18 = False
         self.ENABLE_STRATEGY_19 = True
+        self.ENABLE_STRATEGY_20 = False
 
         # Strategy 1
         self.SUPERTREND_LEN = 12
@@ -139,13 +140,13 @@ class Config:
         self.PROXY_URL = os.getenv("DHAN_PROXY_URL", "").strip()
 
         # Parse Strategy Enable Flags from .env
-        for i in range(1, 20):
+        for i in range(1, 21):
             env_val = os.getenv(f"ENABLE_STRATEGY_{i}", None)
             if env_val is not None:
                 setattr(self, f"ENABLE_STRATEGY_{i}", env_val.strip().upper() == "TRUE")
 
         self.active_strategy = "Strategy_3"
-        for i in range(1, 20):
+        for i in range(1, 21):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 self.active_strategy = f"Strategy_{i}"
                 break

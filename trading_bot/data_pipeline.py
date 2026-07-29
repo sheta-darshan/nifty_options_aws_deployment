@@ -997,3 +997,152 @@ def get_today_trade_count(csv_file: str, instrument_name: str, timezone) -> dict
         import logging
         logging.error(f"[RESTORE] Failed to count trades for {instrument_name}: {e}")
         return {}
+
+# ========== STRATEGY 20: CALENDAR SPREAD OPTION RESOLVER ==========
+def choose_calendar_spread_v2(api, spot_price: float, stance: str = "PUT_CALENDAR", instrument_config: dict = None) -> list:
+    """
+    Dynamic 3:1:1 Calendar Spread Option Contract Resolver using Dhan API v2.
+    stance: "PUT_CALENDAR" (P options) or "CALL_CALENDAR" (C options).
+    """
+    if instrument_config is None:
+        instrument_config = {}
+        
+    underlying_scrip = instrument_config.get("security_id", 13)
+    target_long_p = instrument_config.get("target_long_premium", 200.0)
+    target_short1_p = instrument_config.get("target_short1_premium", 150.0)
+    target_short2_p = instrument_config.get("target_short2_premium", 450.0)
+    max_strike_gap = instrument_config.get("max_strike_gap", 1000)
+    
+    option_type = 'P' if "PUT" in stance.upper() else 'C'
+    
+    # 1. Fetch Active Expiries via Dhan API v2
+    expiry_list = api.get_expiry_list_v2(underlying_scrip=underlying_scrip)
+    if not expiry_list or len(expiry_list) < 2:
+        logger.error("[CALENDAR_V2] Failed to fetch active expiries from Dhan API v2.")
+        return []
+        
+    weekly_expiry = expiry_list[0]
+    
+    # Monthly Expiry Determination (Last Tuesday/Thursday of the month)
+    monthly_expiry = None
+    for exp in expiry_list:
+        # Pick expiry > 20 days out as monthly
+        exp_dt = datetime.strptime(exp, "%Y-%m-%d")
+        today_dt = datetime.now()
+        if (exp_dt - today_dt).days >= 18:
+            monthly_expiry = exp
+            break
+            
+    if not monthly_expiry:
+        monthly_expiry = expiry_list[-1]
+        
+    # Check Monthly Expiry Overlap (Last Week of Month Edge Case)
+    if weekly_expiry == monthly_expiry:
+        logger.warning(f"[CALENDAR_V2] Weekly Expiry equals Monthly Expiry ({weekly_expiry}). Shifting Monthly to Next Month!")
+        for exp in expiry_list[1:]:
+            if exp != weekly_expiry:
+                monthly_expiry = exp
+                break
+                
+    logger.info(f"[CALENDAR_V2] Expiries Selected -> Weekly: {weekly_expiry}, Monthly: {monthly_expiry}")
+    
+    # 2. Fetch Real-Time Option Chains
+    chain_weekly = api.get_option_chain_v2(underlying_scrip=underlying_scrip, expiry=weekly_expiry)
+    chain_monthly = api.get_option_chain_v2(underlying_scrip=underlying_scrip, expiry=monthly_expiry)
+    
+    if not chain_weekly or not chain_monthly:
+        logger.error("[CALENDAR_V2] Option chain payload empty. Cannot resolve strikes.")
+        return []
+        
+    # Helper to scan chain for best target premium strike
+    def match_strike(chain_data, target_premium, opt_t):
+        best_item = None
+        best_diff = float('inf')
+        
+        # Parse chain items
+        items = chain_data.get("oc", {}) if isinstance(chain_data, dict) else {}
+        for strike_str, strike_data in items.items():
+            try:
+                strike_val = float(strike_str)
+                opt_data = strike_data.get("ce" if opt_t == 'C' else "pe", {})
+                ltp = float(opt_data.get("last_price", 0.0) or opt_data.get("ltp", 0.0))
+                sec_id = str(opt_data.get("security_id", "") or opt_data.get("securityId", ""))
+                lot_sz = safe_int(opt_data.get("lot_size", 65), 65)
+                
+                if ltp > 0 and sec_id:
+                    diff = abs(ltp - target_premium)
+                    if diff < best_diff:
+                        best_diff = diff
+                        best_item = {
+                            "strike": strike_val,
+                            "ltp": ltp,
+                            "security_id": sec_id,
+                            "lot_size": lot_sz
+                        }
+            except Exception:
+                continue
+        return best_item
+        
+    long_leg = match_strike(chain_monthly, target_long_p, option_type)
+    short1_leg = match_strike(chain_weekly, target_short1_p, option_type)
+    short2_leg = match_strike(chain_weekly, target_short2_p, option_type)
+    
+    if not long_leg or not short1_leg or not short2_leg:
+        logger.error("[CALENDAR_V2] Failed to match all 3 premium legs in Option Chain.")
+        return []
+        
+    # 3. Apply Golden Constraint Safety Filter
+    gap1 = abs(short1_leg['strike'] - long_leg['strike'])
+    gap2 = abs(short2_leg['strike'] - long_leg['strike'])
+    max_gap = max(gap1, gap2)
+    
+    if max_gap > max_strike_gap:
+        logger.warning(f"[CALENDAR_V2] Golden Constraint Violated! Max Strike Gap {max_gap} > {max_strike_gap}. Skipping Trade!")
+        return []
+        
+    lot_size = long_leg['lot_size']
+    instrument_config['lot_size'] = lot_size
+    
+    logger.info(f"[CALENDAR_V2] 3:1:1 Leg Matching Success (Lot Size: {lot_size}):")
+    logger.info(f"   -> Long Monthly (3 Lots): Strike {long_leg['strike']} @ LTP {long_leg['ltp']} (SecID: {long_leg['security_id']})")
+    logger.info(f"   -> Short Weekly 1 (1 Lot): Strike {short1_leg['strike']} @ LTP {short1_leg['ltp']} (SecID: {short1_leg['security_id']})")
+    logger.info(f"   -> Short Weekly 2 (1 Lot): Strike {short2_leg['strike']} @ LTP {short2_leg['ltp']} (SecID: {short2_leg['security_id']})")
+    
+    legs = [
+        {
+            "tag": "LONG_MONTHLY",
+            "action": "BUY",
+            "lots": 3,
+            "quantity": 3 * lot_size,
+            "security_id": long_leg['security_id'],
+            "strike": long_leg['strike'],
+            "expiry": monthly_expiry,
+            "ltp": long_leg['ltp'],
+            "option_type": option_type
+        },
+        {
+            "tag": "SHORT_WEEKLY_1",
+            "action": "SELL",
+            "lots": 1,
+            "quantity": 1 * lot_size,
+            "security_id": short1_leg['security_id'],
+            "strike": short1_leg['strike'],
+            "expiry": weekly_expiry,
+            "ltp": short1_leg['ltp'],
+            "option_type": option_type
+        },
+        {
+            "tag": "SHORT_WEEKLY_2",
+            "action": "SELL",
+            "lots": 1,
+            "quantity": 1 * lot_size,
+            "security_id": short2_leg['security_id'],
+            "strike": short2_leg['strike'],
+            "expiry": weekly_expiry,
+            "ltp": short2_leg['ltp'],
+            "option_type": option_type
+        }
+    ]
+    
+    return legs
+
