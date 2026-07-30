@@ -179,14 +179,27 @@ def main():
                 if trade_both_sides == 1:
                     from scratch.test_dual_calendar_spread import run_dual_calendar_backtest
                     df_dual = run_dual_calendar_backtest()
-                    results = pd.DataFrame({
-                        'Entry_Time': df_dual['Entry_Date'],
-                        'Exit_Time': df_dual['Exit_Date'],
-                        'Type': 'DUAL_CALENDAR',
-                        'Gross_PnL': df_dual['Dual_Net_PnL_Rs'],
-                        'Charges': 300.0,
-                        'PnL': df_dual['Dual_Net_PnL_Rs'] - 300.0
-                    })
+                    
+                    # Bifurcate into two separate trades per cycle: one for PUT and one for CALL
+                    rows = []
+                    for _, r in df_dual.iterrows():
+                        rows.append({
+                            'Entry_Time': r['Entry_Date'] + " 09:20:00",
+                            'Exit_Time': r['Exit_Date'] + " 15:20:00",
+                            'Type': 'PUT_CALENDAR',
+                            'Gross_PnL': float(r['PUT_PnL_pts']) * 65.0,
+                            'Charges': 150.0,
+                            'PnL': (float(r['PUT_PnL_pts']) * 65.0) - 150.0
+                        })
+                        rows.append({
+                            'Entry_Time': r['Entry_Date'] + " 09:20:00",
+                            'Exit_Time': r['Exit_Date'] + " 15:20:00",
+                            'Type': 'CALL_CALENDAR',
+                            'Gross_PnL': float(r['CALL_PnL_pts']) * 65.0,
+                            'Charges': 150.0,
+                            'PnL': (float(r['CALL_PnL_pts']) * 65.0) - 150.0
+                        })
+                    results = pd.DataFrame(rows)
                 else:
                     # Run single stance calendar spread evaluation
                     csv_path = "research_and_development/strategy20_exact_live_premium_matched_log.csv"
