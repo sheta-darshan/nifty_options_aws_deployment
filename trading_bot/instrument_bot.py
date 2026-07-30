@@ -697,6 +697,11 @@ class InstrumentBot(threading.Thread):
                 self.logger.info(f"[{self.name}] Cooldown activated. Locked until {self.cooldown_until.strftime('%H:%M:%S')}")
             return
 
+        # Check Strategy 20 (Math Calendar Spread)
+        if inst_config.get("strategy_type") == "CALENDAR_SPREAD" or getattr(self.config, "ENABLE_STRATEGY_20", False):
+            self._execute_calendar_spread_strategy(signal, atr_val, source)
+            return
+
         # Check Option Strategy Mode
         strat_mode = inst_config.get('option_strategy_mode', 'DIRECT')
         if strat_mode != 'DIRECT':
@@ -993,6 +998,72 @@ class InstrumentBot(threading.Thread):
                                 
             except Exception as e:
                 self.logger.exception(f"[{self.name}] Error checking/executing dynamic exits for account '{acc_name}': {e}")
+
+    def _execute_calendar_spread_strategy(self, signal: str, atr_val: float, source: str):
+        """Execute Strategy 20 (3:1:1 Calendar Spread) sequentially across active accounts (BUY Long Legs first)."""
+        inst_config = self.config.INSTRUMENTS[self.name]
+        spot_close = float(self.df_spot['close'].iloc[-1]) if self.df_spot is not None and not self.df_spot.empty else 0.0
+        regime_stance = getattr(self.df_spot, 'regime', ['PUT_CALENDAR'])[-1] if hasattr(self.df_spot, 'regime') else ("PUT_CALENDAR" if signal.upper() == "SELL" else "CALL_CALENDAR")
+        
+        self.logger.info(f"[{self.name}] Executing Strategy 20 Calendar Spread: Stance={regime_stance}, Spot={spot_close}")
+        if inst_config.get("trade_both_sides", 0) == 1:
+            self.logger.info(f"[{self.name}] DUAL STANCE ENABLED: Resolving BOTH Call & Put Calendar Spreads...")
+            call_legs = choose_calendar_spread_v2(self.data_api, spot_close, stance="CALL_CALENDAR", instrument_config=inst_config)
+            put_legs = choose_calendar_spread_v2(self.data_api, spot_close, stance="PUT_CALENDAR", instrument_config=inst_config)
+            cal_legs = (call_legs or []) + (put_legs or [])
+        else:
+            cal_legs = choose_calendar_spread_v2(self.data_api, spot_close, stance=regime_stance, instrument_config=inst_config)
+            
+        if not cal_legs:
+            self.logger.error(f"[{self.name}] Strategy 20 Calendar Spread leg resolution failed.")
+            return
+
+        # Pre-trade margin check via Dhan API v2
+        scrip_list = [
+            {
+                "exchangeSegment": inst_config.get("option_segment", "NSE_FNO"),
+                "transactionType": leg["action"],
+                "quantity": leg["quantity"],
+                "productType": "MARGIN",
+                "securityId": str(leg["security_id"]),
+                "price": float(leg["ltp"])
+            } for leg in cal_legs
+        ]
+        margin_resp = self.data_api.calculate_multi_order_margin(scrip_list)
+        
+        # Staged Order Execution: Stage 1 = Long Monthly FIRST, Stage 2 = Short Weekly SECOND
+        long_legs = [l for l in cal_legs if l["action"] == "BUY"]
+        short_legs = [l for l in cal_legs if l["action"] == "SELL"]
+        
+        # Execute Long Legs First across all order manager accounts
+        for leg in long_legs:
+            for acc in self.order_manager.get_accounts():
+                resp = acc['api'].place_order(
+                    security_id=leg["security_id"],
+                    transaction_type="BUY",
+                    quantity=leg["quantity"],
+                    exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
+                    product_type="MARGIN",
+                    order_type="MARKET",
+                    price=leg["ltp"]
+                )
+                self.logger.info(f"[{self.name}] Stage 1 Long Leg Order Executed ({acc['name']}): {leg['tag']} -> {resp}")
+                
+        # Execute Short Legs Second
+        for leg in short_legs:
+            for acc in self.order_manager.get_accounts():
+                resp = acc['api'].place_order(
+                    security_id=leg["security_id"],
+                    transaction_type="SELL",
+                    quantity=leg["quantity"],
+                    exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
+                    product_type="MARGIN",
+                    order_type="MARKET",
+                    price=leg["ltp"]
+                )
+                self.logger.info(f"[{self.name}] Stage 2 Short Leg Order Executed ({acc['name']}): {leg['tag']} -> {resp}")
+                
+        self.cooldown_until = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
 
     def _execute_multi_leg_strategy(self, strategy_mode: str, signal: str, atr_val: float, source: str):
         """Execute a multi-leg option strategy in a margin-safe sequential manner (BUY legs first)."""
