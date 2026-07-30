@@ -1826,3 +1826,6 @@ This file tracks all historical backtesting and optimization runs. Updates autom
 | 2026-07-29 20:58:41 | Backtest | ZYDUSLIFE | Strategy_19 | 180 | BOTH | N/A (N/A) | Rs.-6776.52 (25.0%) | sl_mult_buy=2, tp_mult_buy=15, trailing_mult_buy=1.5, sl_... | UNPROFITABLE |
 | 2026-07-31 01:48:39 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.365031.25 (87.5%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | PROFITABLE |
 | 2026-07-31 02:02:19 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.347242.84 (87.1%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | PROFITABLE |
+| 2026-07-31 02:06:01 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.347244.50 (87.1%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | PROFITABLE |
+| 2026-07-31 02:13:42 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.-54380.75 (32.3%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | UNPROFITABLE |
+| 2026-07-31 02:26:54 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.1058412.75 (87.1%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | PROFITABLE |
