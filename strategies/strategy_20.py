@@ -20,17 +20,33 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from typing import Dict, Any, Tuple
+from .base import BaseStrategy
 from .registry import register_strategy
 
 @register_strategy
-class Strategy_20:
+class Strategy_20(BaseStrategy):
     """
     Math-Based 3:1:1 Calendar Spread Strategy (Strategy 20)
     """
     name = "Strategy_20"
     
+    def get_default_params(self) -> dict:
+        return {
+            "base_covid_low": 7511.0,
+            "cagr_rate": 0.117,
+            "cagr_base_date": "2020-03-24",
+            "target_long_premium": 200.0,
+            "target_short1_premium": 150.0,
+            "target_short2_premium": 450.0,
+            "max_strike_gap": 1000,
+            "upper_threshold": 1.25,
+            "lower_threshold": 0.95,
+            "timeframe": "5min"
+        }
+        
     def __init__(self, params: Dict[str, Any] = None):
-        self.params = params or {}
+        super().__init__(params)
+        self.params = params or self.get_default_params()
         self.name = "Strategy_20"
         
         # Strategy Parameters
@@ -73,17 +89,17 @@ class Strategy_20:
         else:
             return "PUT_CALENDAR" if trend_slope >= 0 else "CALL_CALENDAR"
 
-    def generate_signal(self, df: pd.DataFrame) -> pd.DataFrame:
+    def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Generate strategy signals for DataFrame.
         Outputs:
-        - 'signal': +1 for CALL_CALENDAR, -1 for PUT_CALENDAR, 0 for Neutral
+        - 'Signal': +1 for CALL_CALENDAR, -1 for PUT_CALENDAR, 0 for Neutral
         - 'regime': Stance string ('CALL_CALENDAR' or 'PUT_CALENDAR')
         - 'fair_value': Fair value baseline float
         """
         df = df.copy()
         if 'close' not in df.columns:
-            df['signal'] = 0
+            df['Signal'] = 0
             return df
 
         # Calculate 10-period momentum for middle zone regime determination
@@ -95,35 +111,45 @@ class Strategy_20:
         
         for idx, row in df.iterrows():
             # Get current timestamp
+            dt_obj = None
             if 'timestamp' in df.columns:
                 ts = row['timestamp']
                 if isinstance(ts, str):
-                    dt = datetime.strptime(ts[:10], "%Y-%m-%d")
+                    try:
+                        dt_obj = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                    except:
+                        dt_obj = datetime.strptime(ts[:10], "%Y-%m-%d")
                 elif hasattr(ts, 'to_pydatetime'):
-                    dt = ts.to_pydatetime()
-                else:
-                    dt = datetime.now()
-            else:
-                dt = datetime.now()
+                    dt_obj = ts.to_pydatetime()
+            if dt_obj is None:
+                dt_obj = datetime.now()
                 
             spot = float(row['close'])
             slope = float(row['trend_10']) if pd.notna(row['trend_10']) else 0.0
             
-            fair_val = self.calculate_fair_value(dt)
-            regime = self.determine_regime(spot, dt, slope)
+            fair_val = self.calculate_fair_value(dt_obj)
+            regime = self.determine_regime(spot, dt_obj, slope)
             
-            # Signal representation: +1 for Call Calendar, -1 for Put Calendar
-            sig = 1 if regime == "CALL_CALENDAR" else -1
-            
+            # Emit entry signal ONLY on weekly cycle start (Tuesday/Thursday at 09:20 AM)
+            is_weekly_entry_time = (dt_obj.weekday() in [1, 3]) and (dt_obj.hour == 9 and dt_obj.minute == 20)
+            if is_weekly_entry_time:
+                sig = 1 if regime == "CALL_CALENDAR" else -1
+            else:
+                sig = 0
+                
             signals.append(sig)
             regimes.append(regime)
             fair_vals.append(fair_val)
             
+        df['Signal'] = signals
         df['signal'] = signals
         df['regime'] = regimes
         df['fair_value'] = fair_vals
         
         return df
+
+    def generate_signal(self, df: pd.DataFrame) -> pd.DataFrame:
+        return self.generate_signals(df)
 
 def get_strategy_instance(params: Dict[str, Any] = None):
     return Strategy_20(params)
