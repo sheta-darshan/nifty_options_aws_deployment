@@ -171,28 +171,38 @@ def main():
             
             # Inject Strategy 20 signals or run Strategy 20 engine
             if active_strat == "Strategy_20":
-                from research_and_development.backtest_180days_1min_cached_options import run_180day_exact_premium_matched_backtest
                 from strategies.strategy_20 import Strategy_20
                 strat = Strategy_20()
                 engine.df_spot = strat.generate_signals(engine.df_spot)
                 
-                # Execute Strategy 20 Parity Multi-leg Engine
-                import research_and_development.backtest_180days_1min_cached_options as strat20_mod
-                
-                # Run calendar spread evaluation
-                csv_path = "research_and_development/strategy20_exact_live_premium_matched_log.csv"
-                if not os.path.exists(csv_path):
-                    strat20_mod.run_180day_exact_premium_matched_backtest()
-                    
-                df_s20 = pd.read_csv(csv_path)
-                results = pd.DataFrame({
-                    'Entry_Time': df_s20['Entry_Timestamp'],
-                    'Exit_Time': df_s20['Exit_Timestamp'],
-                    'Type': df_s20['Stance'],
-                    'Gross_PnL': df_s20['Net_Cycle_PnL_Rs'],
-                    'Charges': 150.0,
-                    'PnL': df_s20['Net_Cycle_PnL_Rs'] - 150.0
-                })
+                trade_both_sides = engine.inst_config.get("trade_both_sides", 0)
+                if trade_both_sides == 1:
+                    from scratch.test_dual_calendar_spread import run_dual_calendar_backtest
+                    df_dual = run_dual_calendar_backtest()
+                    results = pd.DataFrame({
+                        'Entry_Time': df_dual['Entry_Date'],
+                        'Exit_Time': df_dual['Exit_Date'],
+                        'Type': 'DUAL_CALENDAR',
+                        'Gross_PnL': df_dual['Dual_Net_PnL_Rs'],
+                        'Charges': 300.0,
+                        'PnL': df_dual['Dual_Net_PnL_Rs'] - 300.0
+                    })
+                else:
+                    # Run single stance calendar spread evaluation
+                    csv_path = "research_and_development/strategy20_exact_live_premium_matched_log.csv"
+                    if not os.path.exists(csv_path):
+                        import research_and_development.backtest_180days_1min_cached_options as strat20_mod
+                        strat20_mod.run_180day_exact_premium_matched_backtest()
+                        
+                    df_s20 = pd.read_csv(csv_path)
+                    results = pd.DataFrame({
+                        'Entry_Time': df_s20['Entry_Timestamp'],
+                        'Exit_Time': df_s20['Exit_Timestamp'],
+                        'Type': df_s20['Stance'],
+                        'Gross_PnL': df_s20['Net_Cycle_PnL_Rs'],
+                        'Charges': 150.0,
+                        'PnL': df_s20['Net_Cycle_PnL_Rs'] - 150.0
+                    })
             else:
                 # Run standard single-leg parity backtest
                 results = engine.run(write_to_csv=False)

@@ -163,7 +163,7 @@
             },
             "Strategy_20": {
                 "strategy_type": "CALENDAR_SPREAD",
-                "trade_both_sides": 0,
+                "trade_both_sides": 1,
                 "target_long_premium": 200,
                 "target_short1_premium": 150,
                 "target_short2_premium": 450,
