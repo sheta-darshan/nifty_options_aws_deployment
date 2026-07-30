@@ -45,7 +45,7 @@ def log_experiment_to_tracker(run_type, instrument, strategy_name, leg_mode, day
         "test_pf": test_res.get("Profit_Factor", 0.0) if test_res else "",
         "test_pnl": test_res.get("Net_PnL", 0.0) if test_res else "",
         "test_max_dd": test_res.get("Max_Drawdown", 0.0) if test_res else "",
-        "best_params": json.dumps(best_params) if best_params else "",
+        "best_params": json.dumps(best_params, default=str) if best_params else "",
         "verdict": verdict
     }
     
@@ -169,8 +169,33 @@ def main():
             # Automatically loads/downloads the spot data
             engine.load_data()
             
-            # Run the parity backtest
-            results = engine.run(write_to_csv=False)
+            # Inject Strategy 20 signals or run Strategy 20 engine
+            if active_strat == "Strategy_20":
+                from research_and_development.backtest_180days_1min_cached_options import run_180day_exact_premium_matched_backtest
+                from strategies.strategy_20 import Strategy_20
+                strat = Strategy_20()
+                engine.df_spot = strat.generate_signals(engine.df_spot)
+                
+                # Execute Strategy 20 Parity Multi-leg Engine
+                import research_and_development.backtest_180days_1min_cached_options as strat20_mod
+                
+                # Run calendar spread evaluation
+                csv_path = "research_and_development/strategy20_exact_live_premium_matched_log.csv"
+                if not os.path.exists(csv_path):
+                    strat20_mod.run_180day_exact_premium_matched_backtest()
+                    
+                df_s20 = pd.read_csv(csv_path)
+                results = pd.DataFrame({
+                    'Entry_Time': df_s20['Entry_Timestamp'],
+                    'Exit_Time': df_s20['Exit_Timestamp'],
+                    'Type': df_s20['Stance'],
+                    'Gross_PnL': df_s20['Net_Cycle_PnL_Rs'],
+                    'Charges': 150.0,
+                    'PnL': df_s20['Net_Cycle_PnL_Rs'] - 150.0
+                })
+            else:
+                # Run standard single-leg parity backtest
+                results = engine.run(write_to_csv=False)
             
             if not results.empty:
                 total_trades = len(results)

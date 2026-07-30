@@ -2154,7 +2154,13 @@ def main_loop(config: Config, logger):
                                     regime_stance = getattr(df_5min, 'regime', ['PUT_CALENDAR'])[-1] if hasattr(df_5min, 'regime') else ("PUT_CALENDAR" if signal == "SELL" else "CALL_CALENDAR")
                                     
                                     logger.info(f"[{prefix}] Executing Strategy 20 Calendar Spread: Stance={regime_stance}, Spot={spot_close}")
-                                    cal_legs = choose_calendar_spread_v2(api, spot_close, stance=regime_stance, instrument_config=inst_config)
+                                    if inst_config.get("trade_both_sides", 0) == 1:
+                                        logger.info(f"[{prefix}] DUAL STANCE ENABLED: Resolving BOTH Call & Put Calendar Spreads...")
+                                        call_legs = choose_calendar_spread_v2(api, spot_close, stance="CALL_CALENDAR", instrument_config=inst_config)
+                                        put_legs = choose_calendar_spread_v2(api, spot_close, stance="PUT_CALENDAR", instrument_config=inst_config)
+                                        cal_legs = (call_legs or []) + (put_legs or [])
+                                    else:
+                                        cal_legs = choose_calendar_spread_v2(api, spot_close, stance=regime_stance, instrument_config=inst_config)
                                     
                                     if cal_legs:
                                         # Pre-trade margin check via Dhan API v2

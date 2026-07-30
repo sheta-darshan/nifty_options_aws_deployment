@@ -110,9 +110,11 @@ class Strategy_20(BaseStrategy):
         fair_vals = []
         
         for idx, row in df.iterrows():
-            # Get current timestamp
+            # Get current timestamp from row or index
             dt_obj = None
-            if 'timestamp' in df.columns:
+            if isinstance(idx, (pd.Timestamp, datetime)):
+                dt_obj = idx.to_pydatetime() if hasattr(idx, 'to_pydatetime') else idx
+            elif 'timestamp' in df.columns:
                 ts = row['timestamp']
                 if isinstance(ts, str):
                     try:
