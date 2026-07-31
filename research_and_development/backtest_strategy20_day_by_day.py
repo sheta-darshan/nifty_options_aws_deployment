@@ -125,8 +125,8 @@ def run_day_by_day_backtest(trade_both_sides=1, forced_stance=None):
                         })
                         port[leg_name] = None
             
-        # Entry check: Tuesday (1) or Thursday (3) at 09:20 AM
-        if curr_weekday in [1, 3]:
+        # Entry check: Wednesday (2) at 09:20 AM
+        if curr_weekday == 2:
             entry_candle = day_df[day_df['timestamp'].dt.strftime('%H:%M') == '09:20']
             if entry_candle.empty:
                 entry_candle = day_df.iloc[0:1]
