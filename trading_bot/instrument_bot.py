@@ -1031,14 +1031,83 @@ class InstrumentBot(threading.Thread):
         ]
         margin_resp = self.data_api.calculate_multi_order_margin(scrip_list)
         
-        # Staged Order Execution: Stage 1 = Long Monthly FIRST, Stage 2 = Short Weekly SECOND
-        long_legs = [l for l in cal_legs if l["action"] == "BUY"]
-        short_legs = [l for l in cal_legs if l["action"] == "SELL"]
+        # Determine for each account whether it already holds the monthly long legs
+        # and execute the legs selectively per account to implement Mode B rollover.
+        accounts = self.order_manager.get_accounts()
+        prefix = inst_config.get('fno_prefix', self.name).upper()
         
-        # Execute Long Legs First across all order manager accounts
-        for leg in long_legs:
-            for acc in self.order_manager.get_accounts():
-                resp = acc['api'].place_order(
+        for acc in accounts:
+            acc_name = acc['name']
+            acc_api = acc['api']
+            acc_config = acc.get('config', {})
+            
+            # --- STRATEGY ROUTING FILTER ---
+            allowed_strategies = acc_config.get('allowed_strategies')
+            if allowed_strategies is not None and "Strategy_20" not in allowed_strategies:
+                self.logger.debug(f"[{self.name}] [SKIP] Strategy_20 for '{acc_name}' restricted. Not in allowed_strategies.")
+                continue
+                
+            allowed_instruments = acc_config.get('allowed_instruments')
+            if allowed_instruments is not None and self.name not in allowed_instruments:
+                self.logger.debug(f"[{self.name}] [SKIP] '{acc_name}' restricted. Not in allowed_instruments.")
+                continue
+                
+            try:
+                positions = acc_api.get_positions()
+            except Exception as e:
+                self.logger.error(f"[{self.name}] Failed to fetch positions for rollover check on '{acc_name}': {e}")
+                positions = []
+                
+            legs_to_execute = []
+            for leg in cal_legs:
+                if leg["action"] == "BUY" and leg["tag"] == "LONG_MONTHLY":
+                    is_held = False
+                    target_strike = float(leg["strike"])
+                    target_expiry = leg["expiry"]
+                    target_type = "CE" if leg["option_type"] == 'C' else "PE"
+                    
+                    for pos in positions:
+                        qty = safe_int(pos.get('netQty', 0))
+                        if qty > 0:
+                            sym = pos.get('tradingSymbol', '').upper()
+                            if sym.startswith(prefix) and sym.endswith(target_type):
+                                pos_strike = float(pos.get('strikePrice', 0.0))
+                                pos_expiry = str(pos.get('expiryDate', '')).split(' ')[0]
+                                if abs(pos_strike - target_strike) < 1.0 and pos_expiry == target_expiry:
+                                    is_held = True
+                                    self.logger.info(f"[{self.name}] Monthly Long Leg {sym} (Strike {target_strike}, Expiry {target_expiry}) is ALREADY HELD in '{acc_name}'. Skipping BUY order.")
+                                    break
+                    if not is_held:
+                        legs_to_execute.append(leg)
+                else:
+                    legs_to_execute.append(leg)
+                    
+            if not legs_to_execute:
+                continue
+                
+            # Pre-trade margin check via Dhan API v2 for this account
+            scrip_list = [
+                {
+                    "exchangeSegment": inst_config.get("option_segment", "NSE_FNO"),
+                    "transactionType": leg["action"],
+                    "quantity": leg["quantity"],
+                    "productType": "MARGIN",
+                    "securityId": str(leg["security_id"]),
+                    "price": float(leg["ltp"])
+                } for leg in legs_to_execute
+            ]
+            try:
+                margin_resp = self.data_api.calculate_multi_order_margin(scrip_list)
+            except Exception as e:
+                self.logger.warning(f"[{self.name}] Pre-trade margin calculation failed for '{acc_name}': {e}")
+                
+            # Staged Order Execution for this account: BUY legs first, then SELL legs
+            buy_legs = [l for l in legs_to_execute if l["action"] == "BUY"]
+            sell_legs = [l for l in legs_to_execute if l["action"] == "SELL"]
+            
+            # 1. Place BUY legs (if any are not already held)
+            for leg in buy_legs:
+                resp = acc_api.place_order(
                     security_id=leg["security_id"],
                     transaction_type="BUY",
                     quantity=leg["quantity"],
@@ -1047,12 +1116,15 @@ class InstrumentBot(threading.Thread):
                     order_type="MARKET",
                     price=leg["ltp"]
                 )
-                self.logger.info(f"[{self.name}] Stage 1 Long Leg Order Executed ({acc['name']}): {leg['tag']} -> {resp}")
+                self.logger.info(f"[{self.name}] Stage 1 Long Leg Order Executed ({acc_name}): {leg['tag']} -> {resp}")
                 
-        # Execute Short Legs Second
-        for leg in short_legs:
-            for acc in self.order_manager.get_accounts():
-                resp = acc['api'].place_order(
+            # Wait 500ms for margin benefit to apply if we placed a new BUY leg
+            if buy_legs and sell_legs:
+                time.sleep(0.5)
+                
+            # 2. Place SELL legs (weekly short legs)
+            for leg in sell_legs:
+                resp = acc_api.place_order(
                     security_id=leg["security_id"],
                     transaction_type="SELL",
                     quantity=leg["quantity"],
@@ -1061,7 +1133,7 @@ class InstrumentBot(threading.Thread):
                     order_type="MARKET",
                     price=leg["ltp"]
                 )
-                self.logger.info(f"[{self.name}] Stage 2 Short Leg Order Executed ({acc['name']}): {leg['tag']} -> {resp}")
+                self.logger.info(f"[{self.name}] Stage 2 Short Leg Order Executed ({acc_name}): {leg['tag']} -> {resp}")
                 
         self.cooldown_until = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
 
