@@ -2160,10 +2160,97 @@ class InstrumentBot(threading.Thread):
                     except Exception as acc_err:
                         self.logger.error(f"[{self.name}] Error checking positions for {acc_name} in loop: {acc_err}")
                         
+                # Check Strategy 20 Intraday Exits (> Rs. 5000)
+                try:
+                    self._monitor_calendar_spread_exits()
+                except Exception as e:
+                    self.logger.error(f"[{self.name}] Error in calendar spread monitor: {e}")
+                        
             except Exception as loop_err:
                 self.logger.error(f"[{self.name}] Error in local stop monitor loop: {loop_err}")
                 
             time.sleep(5)
+
+    def _monitor_calendar_spread_exits(self):
+        """Monitor active calendar spreads (Strategy 20) for intraday profit target > Rs. 5000."""
+        inst_config = self.config.INSTRUMENTS[self.name]
+        prefix = inst_config.get('fno_prefix', self.name).upper()
+        
+        accounts = self.order_manager.get_accounts()
+        for acc in accounts:
+            acc_name = acc['name']
+            acc_api = acc['api']
+            
+            try:
+                positions = acc_api.get_positions()
+                if not positions:
+                    continue
+                
+                stance_positions = {"CALL": [], "PUT": []}
+                for pos in positions:
+                    qty = safe_int(pos.get('netQty', 0))
+                    if qty == 0:
+                        continue
+                        
+                    sym = pos.get('tradingSymbol', '').upper()
+                    if sym.startswith(prefix):
+                        if sym.endswith('CE'):
+                            stance_positions["CALL"].append(pos)
+                        elif sym.endswith('PE'):
+                            stance_positions["PUT"].append(pos)
+                            
+                for stance, legs in stance_positions.items():
+                    if not legs:
+                        continue
+                        
+                    combined_pnl = 0.0
+                    for leg in legs:
+                        qty = safe_int(leg.get('netQty', 0))
+                        ltp = float(leg.get('lastPrice', 0.0))
+                        avg_px = float(leg.get('averagePrice', 0.0))
+                        if qty != 0:
+                            combined_pnl += qty * (ltp - avg_px)
+                            
+                    if combined_pnl >= 5000.0:
+                        self.logger.warning(f"[{self.name}] [STRATEGY 20 EXIT] Combined PnL for {stance} Calendar on {acc_name} reached Rs. {combined_pnl:.2f} (Target: Rs. 5000). Closing all legs.")
+                        
+                        for leg in legs:
+                            sec_id = str(leg.get('securityId'))
+                            sym = leg.get('tradingSymbol')
+                            qty = safe_int(leg.get('netQty', 0))
+                            abs_qty = abs(qty)
+                            close_action = 'SELL' if qty > 0 else 'BUY'
+                            exch = leg.get('exchangeSegment', 'NSE_FNO')
+                            product = leg.get('productType', 'MARGIN')
+                            
+                            try:
+                                resp = acc_api.place_order(
+                                    security_id=sec_id,
+                                    transaction_type=close_action,
+                                    quantity=abs_qty,
+                                    exchange_segment=exch,
+                                    product_type=product,
+                                    order_type='MARKET',
+                                    price=0.0,
+                                    should_slice=(exch in ['NSE_FNO', 'BSE_FNO'])
+                                )
+                                self.logger.info(f"[{self.name}] [STRATEGY 20 EXIT] Placed exit order for {sym}: {close_action} {abs_qty} -> {resp}")
+                            except Exception as e:
+                                self.logger.error(f"[{self.name}] [STRATEGY 20 EXIT] Failed to close {sym} for {acc_name}: {e}")
+                                
+                        if self.alert_manager:
+                            self.alert_manager.send_alert(
+                                f"🎯 *Strategy 20 Profit Target Reached*\n"
+                                f"*Instrument:* `{self.name}`\n"
+                                f"*Stance:* `{stance} Calendar`\n"
+                                f"*Account:* `{acc_name}`\n"
+                                f"*Combined PnL:* `Rs. {combined_pnl:,.2f}`\n"
+                                f"*Action:* Exited all legs at market.",
+                                header="Strategy 20 Exit"
+                            )
+            except Exception as e:
+                self.logger.error(f"[{self.name}] Error in calendar spread monitor for '{acc_name}': {e}")
+
 
 
 # ========== MAIN TRADING LOOP ==========
