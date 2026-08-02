@@ -28,7 +28,7 @@ def get_contract_price_on_day(cache_dir, strike, opt_type, exp_idx, expiry_date,
             pass
     return None
 
-def run_dynamic_backtest(target_monthly_p=200.0, target_otm_p=120.0, target_itm_p=360.0):
+def run_dynamic_backtest(target_monthly_p=200.0, target_otm_p=120.0, target_itm_p=300.0, target_exit_pnl=5000.0, stop_loss_pnl=-4000.0):
     spot_path = "backtest_data/nifty_spot.csv"
     if not os.path.exists(spot_path):
         print("[ERROR] nifty_spot.csv not found!")
@@ -116,8 +116,17 @@ def run_dynamic_backtest(target_monthly_p=200.0, target_otm_p=120.0, target_itm_
                     
                     total_open_pnl = long_pnl + short1_pnl + short2_pnl
                     
-                    if total_open_pnl >= 5000.0:
-                        # Target reached! Trigger early exit for all legs
+                    trigger_exit = False
+                    status_reason = 'EARLY_EXIT'
+                    if total_open_pnl >= target_exit_pnl:
+                        trigger_exit = True
+                        status_reason = 'EARLY_EXIT'
+                    elif stop_loss_pnl is not None and total_open_pnl <= stop_loss_pnl:
+                        trigger_exit = True
+                        status_reason = 'STOP_LOSS_EXIT'
+                        
+                    if trigger_exit:
+                        # Target or Stop Loss reached! Trigger exit for all legs
                         for leg_name, current_val in [("monthly_long", l_val), ("weekly_short1", s1_val), ("weekly_short2", s2_val)]:
                             leg = port[leg_name]
                             pnl = (current_val - leg["entry_px"]) * leg["qty"] * lot_size
@@ -134,7 +143,7 @@ def run_dynamic_backtest(target_monthly_p=200.0, target_otm_p=120.0, target_itm_
                                 'Exit_Px': current_val,
                                 'Qty': leg['qty'],
                                 'Net_PnL': pnl,
-                                'Status': 'EARLY_EXIT'
+                                'Status': status_reason
                             })
                             port[leg_name] = None
                         
