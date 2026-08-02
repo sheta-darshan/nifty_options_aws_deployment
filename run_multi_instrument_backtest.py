@@ -192,17 +192,13 @@ def main():
                 if df_trades.empty:
                     results = pd.DataFrame()
                 else:
-                    df_trades['Cycle_Key'] = df_trades['Entry_Date'] + "_" + df_trades['Stance']
-                    grouped = df_trades.groupby('Cycle_Key')
-                    
-                    rows = []
                     trade_both_sides = engine.inst_config.get("trade_both_sides", 0)
                     
-                    for key, gp in grouped:
-                        entry_date = gp['Entry_Date'].iloc[0]
-                        exit_date = gp['Exit_Date'].iloc[0]
-                        stance = gp['Stance'].iloc[0]
-                        net_cycle_pnl = gp['Net_PnL'].sum()
+                    rows = []
+                    for _, r in df_trades.iterrows():
+                        stance = r['Stance']
+                        entry_date = r['Entry_Date']
+                        exit_date = r['Exit_Date']
                         
                         if trade_both_sides == 0:
                             entry_ts = pd.to_datetime(entry_date + " 09:20:00")
@@ -211,13 +207,48 @@ def main():
                                 if stance != regime:
                                     continue
                                     
+                        opt_type = 'CE' if 'CALL' in stance else 'PE'
+                        is_short = r['Leg'] in ['WEEKLY_SHORT1', 'WEEKLY_SHORT2']
+                        qty = 195 if r['Leg'] == 'MONTHLY_LONG' else 65
+                        
                         rows.append({
                             'Entry_Time': entry_date + " 09:20:00",
+                            'Type': opt_type,
+                            'Is_Short': is_short,
+                            'Trade_Type': 'SELL' if is_short else 'BUY',
+                            'Option_Symbol': f"NIFTY {r['Strike']} {opt_type}",
+                            'Strike': r['Strike'],
+                            'Expiry': r['Expiry_Date'],
+                            'Strategy': 'Strategy_20',
+                            'Entry_Price': r['Entry_Px'],
+                            'Qty': qty,
+                            'Target_Price': 0.0,
+                            'SL_Price': 0.0,
+                            'Initial_SL': 0.0,
+                            'Spot_ATR': 0.0,
+                            'Entry_Spot': r['Entry_Spot'],
+                            'Max_Favorable_Excursion': r['Entry_Px'],
+                            'Trailing_Trigger_Points': 0.0,
+                            'Trailing_Jump_Points': 0.0,
+                            'exit_mode': 'EXPIRED' if r['Status'] == 'SETTLED' else 'MANUAL',
+                            'spot_sl_price': 0.0,
+                            'spot_target_price': 0.0,
+                            'spot_initial_sl': 0.0,
+                            'spot_mfe': r['Entry_Spot'],
+                            'spot_atr': 0.0,
+                            'Breakeven_Mult': 0.0,
+                            'Initial_SL_Points': 0.0,
+                            'Breakeven_Triggered': False,
+                            'Regime_Trend': 'NEUTRAL',
+                            'Regime_Vol': 'LOW_VIX',
                             'Exit_Time': exit_date + " 15:20:00",
-                            'Type': stance,
-                            'Gross_PnL': net_cycle_pnl,
-                            'Charges': len(gp) * 50.0, # Rs. 50 per leg
-                            'PnL': net_cycle_pnl - (len(gp) * 50.0)
+                            'Exit_Price': r['Exit_Px'],
+                            'Exit_Spot': r['Exit_Spot'],
+                            'Gross_PnL': r['Net_PnL'],
+                            'Charges': 50.0,
+                            'PnL': r['Net_PnL'] - 50.0,
+                            'Exit_Reason': r['Status'],
+                            'Max_Excursion_Pts': 0.0
                         })
                     results = pd.DataFrame(rows)
             else:
