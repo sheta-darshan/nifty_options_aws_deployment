@@ -211,6 +211,11 @@ def main():
                         is_short = r['Leg'] in ['WEEKLY_SHORT1', 'WEEKLY_SHORT2']
                         qty = 195 if r['Leg'] == 'MONTHLY_LONG' else 65
                         
+                        if is_short:
+                            charges_val = engine.calculate_charges(r['Exit_Px'], r['Entry_Px'], qty)
+                        else:
+                            charges_val = engine.calculate_charges(r['Entry_Px'], r['Exit_Px'], qty)
+                        
                         rows.append({
                             'Entry_Time': entry_date + " 09:20:00",
                             'Type': opt_type,
@@ -245,8 +250,8 @@ def main():
                             'Exit_Price': r['Exit_Px'],
                             'Exit_Spot': r['Exit_Spot'],
                             'Gross_PnL': r['Net_PnL'],
-                            'Charges': 50.0,
-                            'PnL': r['Net_PnL'] - 50.0,
+                            'Charges': charges_val,
+                            'PnL': r['Net_PnL'] - charges_val,
                             'Exit_Reason': r['Status'],
                             'Max_Excursion_Pts': 0.0
                         })

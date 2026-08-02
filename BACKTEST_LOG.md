@@ -1833,3 +1833,4 @@ This file tracks all historical backtesting and optimization runs. Updates autom
 | 2026-08-02 12:04:46 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.423376.75 (51.8%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | PROFITABLE |
 | 2026-08-02 12:12:08 | Backtest | NIFTY | Strategy_18 | 180 | BOTH | N/A (N/A) | Rs.-41628.87 (23.2%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | UNPROFITABLE |
 | 2026-08-02 12:14:44 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.409724.25 (61.1%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | PROFITABLE |
+| 2026-08-02 12:18:33 | Backtest | NIFTY | Strategy_20 | 180 | BOTH | N/A (N/A) | Rs.399618.91 (61.1%) | sl_mult_buy=1.5, tp_mult_buy=2, trailing_mult_buy=0, sl_m... | PROFITABLE |
