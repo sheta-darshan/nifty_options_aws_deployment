@@ -2211,8 +2211,20 @@ class InstrumentBot(threading.Thread):
                         if qty != 0:
                             combined_pnl += qty * (ltp - avg_px)
                             
+                    trigger_exit = False
+                    reason = ""
+                    header_label = ""
                     if combined_pnl >= 5000.0:
-                        self.logger.warning(f"[{self.name}] [STRATEGY 20 EXIT] Combined PnL for {stance} Calendar on {acc_name} reached Rs. {combined_pnl:.2f} (Target: Rs. 5000). Closing all legs.")
+                        trigger_exit = True
+                        reason = f"Profit Target Reached (Target: Rs. 5000)"
+                        header_label = "Strategy 20 Profit Target"
+                    elif combined_pnl <= -4000.0:
+                        trigger_exit = True
+                        reason = f"Stop Loss Triggered (Limit: -Rs. 4000)"
+                        header_label = "Strategy 20 Stop Loss"
+                        
+                    if trigger_exit:
+                        self.logger.warning(f"[{self.name}] [STRATEGY 20 EXIT] Combined PnL for {stance} Calendar on {acc_name} reached Rs. {combined_pnl:.2f}. Triggering exit via {reason}.")
                         
                         for leg in legs:
                             sec_id = str(leg.get('securityId'))
@@ -2240,13 +2252,13 @@ class InstrumentBot(threading.Thread):
                                 
                         if self.alert_manager:
                             self.alert_manager.send_alert(
-                                f"🎯 *Strategy 20 Profit Target Reached*\n"
+                                f"🎯 *{header_label}*\n"
                                 f"*Instrument:* `{self.name}`\n"
                                 f"*Stance:* `{stance} Calendar`\n"
                                 f"*Account:* `{acc_name}`\n"
                                 f"*Combined PnL:* `Rs. {combined_pnl:,.2f}`\n"
-                                f"*Action:* Exited all legs at market.",
-                                header="Strategy 20 Exit"
+                                f"*Action:* Exited all legs at market due to {reason}.",
+                                header=header_label
                             )
             except Exception as e:
                 self.logger.error(f"[{self.name}] Error in calendar spread monitor for '{acc_name}': {e}")

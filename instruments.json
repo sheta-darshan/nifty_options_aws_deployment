@@ -165,8 +165,8 @@
                 "strategy_type": "CALENDAR_SPREAD",
                 "trade_both_sides": 1,
                 "target_long_premium": 200,
-                "target_short1_premium": 150,
-                "target_short2_premium": 450,
+                "target_short1_premium": 120,
+                "target_short2_premium": 300,
                 "max_strike_gap": 1000,
                 "num_lots_long": 3,
                 "num_lots_short1": 1,
@@ -4153,7 +4153,7 @@
         "profit_target_sell": 0,
         "expiry_index": 0,
         "num_strikes": 1,
-        "enabled": 0,
+        "enabled": 1,
         "fno_prefix": "APLAPOLLO",
         "strike_step": 20,
         "trailing_mult_buy": 0.7,
@@ -4232,8 +4232,7 @@
             ]
         },
         "allowed_actions": [
-            "BUY",
-            "SELL"
+            "BUY"
         ]
     },
     "ASHOKLEY": {
@@ -7181,7 +7180,8 @@
             ]
         },
         "allowed_actions": [
-            "BUY"
+            "BUY",
+            "SELL"
         ]
     },
     "CUMMINSIND": {
@@ -11261,7 +11261,7 @@
         "gatekeeper_volume_multiplier": 1.5,
         "gatekeeper_oi_min_change_pct": 1.5,
         "block_expiry_day_trades": 1,
-        "enabled": 0,
+        "enabled": 1,
         "fno_prefix": "INDUSTOWER",
         "strike_step": 5,
         "trailing_mult_buy": 0.7,
@@ -11340,8 +11340,7 @@
             ]
         },
         "allowed_actions": [
-            "BUY",
-            "SELL"
+            "BUY"
         ]
     },
     "INFY": {
@@ -12690,7 +12689,8 @@
             ]
         },
         "allowed_actions": [
-            "BUY"
+            "BUY",
+            "SELL"
         ]
     },
     "KFINTECH": {
@@ -12999,7 +12999,8 @@
             ]
         },
         "allowed_actions": [
-            "BUY"
+            "BUY",
+            "SELL"
         ]
     },
     "LICHSGFIN": {
@@ -18545,7 +18546,7 @@
         "gatekeeper_volume_multiplier": 1.5,
         "gatekeeper_oi_min_change_pct": 1.5,
         "block_expiry_day_trades": 1,
-        "enabled": 0,
+        "enabled": 1,
         "fno_prefix": "SUNPHARMA",
         "strike_step": 20,
         "trailing_mult_buy": 0.7,
@@ -18624,8 +18625,7 @@
             ]
         },
         "allowed_actions": [
-            "BUY",
-            "SELL"
+            "BUY"
         ]
     },
     "SUPREMEIND": {
