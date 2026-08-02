@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-def run_premium_backtest(target_otm_p=150.0, target_itm_p=450.0):
+def run_premium_backtest(target_otm_p=150.0, target_itm_p=450.0, target_monthly_p=200.0):
     spot_path = "backtest_data/nifty_spot.csv"
     if not os.path.exists(spot_path):
         return pd.DataFrame()
@@ -178,7 +178,7 @@ def run_premium_backtest(target_otm_p=150.0, target_itm_p=450.0):
                     
                 # 1. Manage Monthly Long Leg (Mode B)
                 if port["monthly_long"] is None:
-                    matched_long = match_leg(chain_monthly, 200.0)
+                    matched_long = match_leg(chain_monthly, target_monthly_p)
                     if matched_long:
                         port["monthly_long"] = {
                             'trade_id': trade_id_counter,
@@ -276,45 +276,46 @@ def get_premium_at_time(file_path, timestamp_to_match):
 if __name__ == "__main__":
     results = []
     
-    # Target short premium pairs to test
+    # Target short premium pairs and monthly premium options to test
     premium_pairs = [
+        (120.0, 360.0),
         (100.0, 300.0),
-        (150.0, 450.0), # current base case
-        (200.0, 500.0),
-        (100.0, 400.0),
-        (120.0, 360.0)
+        (150.0, 450.0)
     ]
+    monthly_premiums = [100.0, 150.0, 200.0, 250.0]
     
-    print("="*100)
-    print("            STRATEGY 20 SHORT PREMIUM OPTIMIZATION SWEEP")
-    print("="*100)
+    print("="*120)
+    print("            STRATEGY 20 FULL PREMIUM OPTIMIZATION SWEEP (MONTHLY & WEEKLY)")
+    print("="*120)
     
-    for otm_p, itm_p in premium_pairs:
-        print(f"[RUNNING] Weekly Short 1 Target: Rs. {otm_p} | Weekly Short 2 Target: Rs. {itm_p}...")
-        df = run_premium_backtest(target_otm_p=otm_p, target_itm_p=itm_p)
-        if not df.empty:
-            num_trades = len(df)
-            gross_pnl = df['Net_PnL'].sum()
-            charges = num_trades * 50.0
-            net_pnl = gross_pnl - charges
-            win_rate = len(df[df['Net_PnL'] > 0]) / num_trades * 100
-            
-            results.append({
-                "OTM_Short_Target": f"Rs. {otm_p}",
-                "ITM_Short_Target": f"Rs. {itm_p}",
-                "Total_Trades": num_trades,
-                "Win_Rate": f"{win_rate:.2f}%",
-                "Gross_PnL_Rs": round(gross_pnl, 2),
-                "Charges_Rs": round(charges, 2),
-                "Net_PnL_Rs": round(net_pnl, 2)
-            })
-            
+    for monthly_p in monthly_premiums:
+        for otm_p, itm_p in premium_pairs:
+            print(f"[RUNNING] Monthly Long: Rs. {monthly_p} | Weekly OTM: Rs. {otm_p} | Weekly ITM: Rs. {itm_p}...")
+            df = run_premium_backtest(target_otm_p=otm_p, target_itm_p=itm_p, target_monthly_p=monthly_p)
+            if not df.empty:
+                num_trades = len(df)
+                gross_pnl = df['Net_PnL'].sum()
+                charges = num_trades * 50.0
+                net_pnl = gross_pnl - charges
+                win_rate = len(df[df['Net_PnL'] > 0]) / num_trades * 100
+                
+                results.append({
+                    "Monthly_Long_Target": f"Rs. {monthly_p}",
+                    "OTM_Short_Target": f"Rs. {otm_p}",
+                    "ITM_Short_Target": f"Rs. {itm_p}",
+                    "Total_Trades": num_trades,
+                    "Win_Rate": f"{win_rate:.2f}%",
+                    "Gross_PnL_Rs": round(gross_pnl, 2),
+                    "Charges_Rs": round(charges, 2),
+                    "Net_PnL_Rs": round(net_pnl, 2)
+                })
+                
     df_res = pd.DataFrame(results)
     df_res = df_res.sort_values(by="Net_PnL_Rs", ascending=False).reset_index(drop=True)
     
-    print("\n" + "="*100)
-    print("                         PREMIUM OPTIMIZATION RANKINGS")
-    print("="*100)
+    print("\n" + "="*120)
+    print("                                     PREMIUM OPTIMIZATION RANKINGS")
+    print("="*120)
     print(df_res.to_string(index=True))
-    print("="*100)
+    print("="*120)
     df_res.to_csv("strategy20_premium_optimization_results.csv", index=False)
