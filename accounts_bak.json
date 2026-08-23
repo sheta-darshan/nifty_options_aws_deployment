@@ -1,0 +1,91 @@
+[
+    {
+        "name": "Primary_Account",
+        "client_id": "1102830085",
+        "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzgzNTY0MjAyLCJpYXQiOjE3ODM0Nzc4MDIsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTAyODMwMDg1In0.6RGDDn9-Sty_hJmbD0wpUovlpRePiPyNpdajP6GKYnTFBi2s173GfG9bn-8OuMWaF-XKksY1PNqTYIZVJvz8kw",
+        "enabled": true,
+        "is_master": true,
+        "allowed_strategies": [
+            "Strategy_3",
+            "Strategy_14",
+            "Strategy_19",
+            "Strategy_20"
+        ],
+        "allowed_instruments": [
+            "NIFTY"
+        ],
+        "allowed_actions": [
+            "BUY",
+            "SELL"
+        ],
+        "global_multiplier": 1,
+        "source_ip": "10.0.1.33",
+        "proxy_url": ""
+    },
+    {
+        "name": "Mansi",
+        "client_id": "1102867126",
+        "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzgzNTY0MjAyLCJpYXQiOjE3ODM0Nzc4MDIsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTAyODY3MTI2In0.d7yunomjeYe3nA5BY5AYynkgeNZBiDXdRRQFSfPIqqHEhxXFW_PlKWJS6dNjQzx-X_boZ_e0AnfMvReXA3EjRw",
+        "enabled": true,
+        "allowed_strategies": [
+            "Strategy_3",
+            "Strategy_14",
+            "Strategy_19",
+            "Strategy_20"
+        ],
+        "allowed_instruments": [
+            "NIFTY"
+        ],
+        "allowed_actions": [
+            "BUY",
+            "SELL"
+        ],
+        "global_multiplier": 1,
+        "source_ip": "10.0.1.183",
+        "proxy_url": ""
+    },
+    {
+        "name": "Suresh",
+        "client_id": "1110511780",
+        "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzgzNTY0MjAyLCJpYXQiOjE3ODM0Nzc4MDIsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEwNTExNzgwIn0.O5Mc9edyS5sftqwbInNQFARkHzAPyYmtg4zZO1EvIJ5zLf7IoD8uB_NrSir1RMr-cuonQNfrZeyKPxrurVib6Q",
+        "enabled": true,
+        "allowed_strategies": [
+            "Strategy_3",
+            "Strategy_14",
+            "Strategy_19",
+            "Strategy_20"
+        ],
+        "allowed_instruments": [
+            "NIFTY"
+        ],
+        "allowed_actions": [
+            "BUY",
+            "SELL"
+        ],
+        "global_multiplier": 1,
+        "source_ip": "10.0.1.244",
+        "proxy_url": ""
+    },
+    {
+        "name": "Bhavesh",
+        "client_id": "1110585727",
+        "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzgzNTY0MjAyLCJpYXQiOjE3ODM0Nzc4MDIsInRva2VuQ29uc3VuZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEwNTg1NzI3In0.M8Y7sQcH9dPtseDR5nB-wKKGSkWb8G4Z54zhqKYrThR2rWls2VGiJ71ads6qxpGH2BeTnv2fajCFPvjNTyWkxA",
+        "enabled": true,
+        "allowed_strategies": [
+            "Strategy_3",
+            "Strategy_14",
+            "Strategy_19",
+            "Strategy_20"
+        ],
+        "allowed_instruments": [
+            "NIFTY"
+        ],
+        "allowed_actions": [
+            "BUY",
+            "SELL"
+        ],
+        "global_multiplier": 1,
+        "source_ip": "10.0.1.27",
+        "proxy_url": ""
+    }
+]

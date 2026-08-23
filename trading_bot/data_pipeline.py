@@ -11,6 +11,9 @@ from typing import Optional, List, Dict, Tuple
 from trading_bot.config import Config
 from trading_bot.api_wrapper import DhanAPIWrapper, safe_int
 
+import logging
+logger = logging.getLogger("live-dhan-bot.pipeline")
+
 # ========== STRATEGY & SIGNAL LOGIC ==========
 
 def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_name=None) -> pd.DataFrame:
@@ -61,7 +64,6 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
             
     if not active_strategies:
         active_strategies = ["Strategy_3"]  # Fallback
-
     # Create merged DataFrame initialized with 0 signals
     merged_df = df.copy()
     merged_df['Signal'] = 0
@@ -70,6 +72,12 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
     merged_df['Exit_Short'] = False
     merged_df['Exit_Source'] = "None"
     
+    # Initialize strategy-specific columns
+    for s_name in active_strategies:
+        merged_df[f'Signal_{s_name}'] = 0
+        merged_df[f'Exit_Long_{s_name}'] = False
+        merged_df[f'Exit_Short_{s_name}'] = False
+        
     try:
         for s_name in active_strategies:
             # Load default parameters for this strategy to prevent collision
@@ -118,18 +126,24 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
             if not df_strat.empty:
                 # Merge Entry Signals
                 sig_mask = df_strat['Signal'] != 0
-                merged_df.loc[sig_mask, 'Signal'] = df_strat.loc[sig_mask, 'Signal']
-                merged_df.loc[sig_mask, 'Signal_Source'] = s_name
+                merged_df.loc[sig_mask, f'Signal_{s_name}'] = df_strat.loc[sig_mask, 'Signal']
+                
+                # Check if we should populate global fallback
+                fallback_mask = sig_mask & (merged_df['Signal'] == 0)
+                merged_df.loc[fallback_mask, 'Signal'] = df_strat.loc[fallback_mask, 'Signal']
+                merged_df.loc[fallback_mask, 'Signal_Source'] = s_name
                 
                 # Merge Exit Signals
                 for col in ['Exit_Long', 'Exit_Short']:
                     if col in df_strat.columns:
                         exit_mask = df_strat[col] == True
-                        merged_df.loc[exit_mask, col] = True
-                        merged_df.loc[exit_mask, 'Exit_Source'] = s_name
+                        merged_df.loc[exit_mask, f'{col}_{s_name}'] = True
+                        
+                        fallback_exit_mask = exit_mask & (merged_df[col] == False)
+                        merged_df.loc[fallback_exit_mask, col] = True
+                        merged_df.loc[fallback_exit_mask, 'Exit_Source'] = s_name
                         
         return merged_df
-        
     except Exception as e:
         logger.error(f"[ERROR] Modular process_market_data failed: {e}", exc_info=True)
         return pd.DataFrame()
@@ -190,10 +204,70 @@ def get_latest_signal(df: pd.DataFrame, logger, config: Config) -> Tuple[Optiona
 
     logger.info(f"  >>> TRIGGER: {source} ({'BUY' if sig == 1 else 'SELL'}) @ {disp_time_str}")
     
-    atr = completed_row.get('ATR', 0.0)
     return ('buy' if sig == 1 else 'sell'), atr, source
 
-# ========== OPTION SELECTION ==========
+def get_all_latest_signals(df: pd.DataFrame, logger, config: Config) -> list:
+    """
+    Check the last COMPLETED 1-min candle for signals across all active strategies.
+    Returns a list of Tuples: [(direction, ATR_Value, Strategy_Name), ...]
+    """
+    if df.empty: return []
+    
+    # Determine the completed row
+    last_row = df.iloc[-1]
+    last_row_time = last_row.name if isinstance(last_row.name, pd.Timestamp) else None
+    
+    use_last_row = True
+    if last_row_time is not None:
+        try:
+            if last_row_time.tzinfo is None:
+                last_row_time_local = last_row_time.tz_localize('UTC').tz_convert(config.TIMEZONE).tz_localize(None)
+            else:
+                last_row_time_local = last_row_time.tz_convert(config.TIMEZONE).tz_localize(None)
+            current_minute = datetime.now(config.TIMEZONE).replace(second=0, microsecond=0, tzinfo=None)
+            if last_row_time_local >= current_minute:
+                use_last_row = False
+        except Exception:
+            pass
+            
+    if use_last_row:
+        completed_row = df.iloc[-1]
+    else:
+        if len(df) < 2:
+            return []
+        completed_row = df.iloc[-2]
+        
+    disp_time = completed_row.name
+    try:
+        if isinstance(disp_time, pd.Timestamp):
+            if disp_time.tz is None:
+                disp_time = disp_time.tz_localize('UTC')
+            disp_time = disp_time.tz_convert(config.TIMEZONE)
+        disp_time_str = disp_time.strftime('%H:%M:%S')
+    except:
+        disp_time_str = str(disp_time)
+        disp_time = None
+        
+    # STRICT TIMEFRAME FIX
+    if isinstance(disp_time, pd.Timestamp) and disp_time.time() < config.RUN_START:
+        return []
+        
+    active_signals = []
+    # Scan columns for strategy-specific signals
+    for col in completed_row.index:
+        if col.startswith("Signal_") and col != "Signal_Source":
+            sig = completed_row.get(col, 0)
+            if sig != 0 and pd.notna(sig):
+                s_name = col.split("Signal_")[-1]
+                # Double check that the strategy is actually enabled
+                if getattr(config, f"ENABLE_{s_name.upper()}", False):
+                    direction = 'buy' if sig == 1 else 'sell'
+                    atr = completed_row.get('ATR', 0.0)
+                    active_signals.append((direction, atr, s_name))
+                    logger.info(f"  >>> CONCURRENT TRIGGER: {s_name} ({direction.upper()}) @ {disp_time_str}")
+                    
+    return active_signals
+
 def load_security_master(dhan, log_func=None) -> Optional[pd.DataFrame]:
     """Load DhanHQ security master list and filter for NIFTY options."""
     log = log_func or (lambda x: print(x))
@@ -750,6 +824,14 @@ def choose_strategy_instruments(api: DhanAPIWrapper, signal: str, strategy_mode:
                 ("SELL", "CE", strike_offset_sell, "CE_SHORT"),
                 ("BUY", "CE", strike_offset_sell + width, "CE_LONG")
             ]
+        elif mode in ("2", "OPTION_WRITING", "DIRECT_SELL"):
+            if str(signal).lower() in ('buy', 'call', '1', '+1'):
+                blueprints = [("SELL", "PE", strike_offset_sell, "PE_SHORT")]
+            else:
+                blueprints = [("SELL", "CE", strike_offset_sell, "CE_SHORT")]
+        elif mode in ("10", "CALENDAR_SPREAD"):
+            logger.info("[CHOOSE_STRAT] Calendar spread mode requested, resolved via dedicated multi-expiry builder.")
+            return []
         else:
             logger.error(f"[CHOOSE_STRAT] Unknown strategy mode: {strategy_mode}")
             return []
@@ -965,18 +1047,21 @@ def fetch_candle_with_retry(api, security_id, config, logger, interval: int = 1,
     return df
 
 # ========== DATA RESTORATION HELPER ==========
-def get_today_trade_count(csv_file: str, instrument_name: str, timezone) -> dict:
+def get_today_trade_count(csv_file: str, instrument_name: str, timezone, strategy_name: str = None) -> dict:
     """Count unique trades for a given instrument today per account by reading the CSV log."""
     if not os.path.exists(csv_file):
         return {}
     try:
         today = datetime.now(timezone).date()
-        df = pd.read_csv(csv_file, usecols=lambda c: c in ['timestamp', 'instrument', 'account'])
+        df = pd.read_csv(csv_file, usecols=lambda c: c in ['timestamp', 'instrument', 'account', 'strategy'])
         
         if 'timestamp' not in df.columns or 'instrument' not in df.columns:
             return {}
             
         df = df[df['instrument'] == instrument_name]
+        if strategy_name and 'strategy' in df.columns:
+            df = df[df['strategy'] == strategy_name]
+            
         if df.empty:
             return {}
             
@@ -1089,6 +1174,11 @@ def choose_calendar_spread_v2(api, spot_price: float, stance: str = "PUT_CALENDA
     
     if not long_leg or not short1_leg or not short2_leg:
         logger.error("[CALENDAR_V2] Failed to match all 3 premium legs in Option Chain.")
+        return []
+        
+    # Ensure short legs do not overlap on the same strike (degenerate spread)
+    if short1_leg['strike'] == short2_leg['strike']:
+        logger.warning(f"[CALENDAR_V2] Strike Collision! Weekly Short 1 and Weekly Short 2 both matched strike {short1_leg['strike']}. Skipping Trade!")
         return []
         
     # 3. Apply Golden Constraint Safety Filter

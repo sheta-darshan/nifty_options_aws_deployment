@@ -14,8 +14,10 @@ backtest_data/
 bhavcopy_cache/
 dhanhq_cache_*.csv
 dhanhq_master_cache.csv
+dhan_equity_master_cache.csv
 dhanhq_securities_compact.csv
 upstox_instruments.csv
+graphify-out/
 
 # ===========================
 # BACKTEST RESULTS & OUTPUTS
@@ -27,7 +29,11 @@ experiments_tracker.csv
 failed_trades.csv
 live_trades_multi_index.csv
 multi_instrument_results.csv
+multi_strategy_portfolio_trades*.csv
+strategy_20_backtest_results.csv
+strategy_20_exit_optimization_results.csv
 nifty_30m_stats.csv
+stock_selection/predictions/
 
 # ===========================
 # CACHES

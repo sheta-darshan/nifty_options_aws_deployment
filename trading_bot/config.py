@@ -56,7 +56,7 @@ class Config:
         # Master Strategy Toggles
         self.ENABLE_STRATEGY_1 = False # Standard Trend
         self.ENABLE_STRATEGY_2 = False # High-Conviction Pullback
-        self.ENABLE_STRATEGY_3 = False   # Triple Momentum Breakout
+        self.ENABLE_STRATEGY_3 = True   # Triple Momentum Breakout
         self.ENABLE_STRATEGY_4 = False # WMA/SMA Trend Breakout
         self.ENABLE_STRATEGY_5 = False  # Added for Strategy 5  
         self.ENABLE_STRATEGY_6 = False  # Added for Strategy 6
@@ -67,12 +67,12 @@ class Config:
         self.ENABLE_STRATEGY_11 = False
         self.ENABLE_STRATEGY_12 = False
         self.ENABLE_STRATEGY_13 = False
-        self.ENABLE_STRATEGY_14 = True
+        self.ENABLE_STRATEGY_14 = False
         self.ENABLE_STRATEGY_15 = False
         self.ENABLE_STRATEGY_16 = False
         self.ENABLE_STRATEGY_17 = False
         self.ENABLE_STRATEGY_18 = False
-        self.ENABLE_STRATEGY_19 = True
+        self.ENABLE_STRATEGY_19 = False
         self.ENABLE_STRATEGY_20 = False
 
         # Strategy 1
@@ -120,8 +120,8 @@ class Config:
         
         # Time Settings
         self.RUN_START = dt_time(9, 20)
-        self.RUN_END = dt_time(14, 59)
-        self.SQ_OFF_TIME = dt_time(15, 00)
+        self.RUN_END = dt_time(15, 15)
+        self.SQ_OFF_TIME = dt_time(15, 16)
         self.TIMEZONE = pytz.timezone("Asia/Kolkata")
         self.POLL_INTERVAL_SECS = 30
         
@@ -216,6 +216,10 @@ class Config:
                     self.INSTRUMENTS = json.load(f)
                 self.validate_and_scrub_instruments()
                 
+                # Store a clean copy of base configurations for multi-strategy dynamic overrides
+                import copy
+                self.BASE_INSTRUMENTS = copy.deepcopy(self.INSTRUMENTS)
+                
                 # Re-apply strategy-specific overrides after reloading from disk
                 if hasattr(self, "active_strategy"):
                     self.apply_strategy_instrument_overrides(self.active_strategy)
@@ -224,8 +228,22 @@ class Config:
                 return True
             else:
                 return False
-        except Exception:
-            return False
+        except Exception as e:
+            # H4 FIX: Previously all exceptions were swallowed silently (except Exception: return False),
+            # leaving operators with no visibility when instruments.json is corrupt or unreadable.
+            # Now logs the error and optionally fires a Telegram alert.
+            import traceback
+            err_detail = traceback.format_exc()
+            try:
+                import logging
+                _logger = logging.getLogger("live-dhan-bot")
+                _logger.error(
+                    f"[CONFIG] CRITICAL: Failed to reload instruments.json. "
+                    f"Bot is running on stale config. Error: {e}\n{err_detail}"
+                )
+            except Exception:
+                pass
+            return None
 
     def validate_and_scrub_instruments(self):
         """Validate all instrument configurations and inject defaults for missing keys to prevent crashes."""
@@ -371,10 +389,38 @@ class Config:
         """
         import time
         import re
+        import os
+        from datetime import datetime as dt
         logger.info("[INDEXER] Starting in-memory security master index build...")
         t0 = time.time()
         self.master_cache_index = {}
         
+        # 1. Download fresh scrip master if missing or stale (older than today)
+        master_csv = os.path.join(self.BASE_DIR, 'dhanhq_securities_compact.csv')
+        downloaded_fresh_master = False
+        need_download_master = True
+        
+        if os.path.exists(master_csv):
+            mtime_date = dt.fromtimestamp(os.path.getmtime(master_csv)).date()
+            if mtime_date == dt.now().date():
+                need_download_master = False
+                
+        if need_download_master:
+            logger.info("[INDEXER] Compact scrip master is stale or missing. Downloading latest from Dhan...")
+            try:
+                import requests
+                master_csv_url = "https://images.dhan.co/api-data/api-scrip-master.csv"
+                response = requests.get(master_csv_url, timeout=60)
+                if response.status_code == 200:
+                    with open(master_csv, "wb") as f:
+                        f.write(response.content)
+                    logger.info("[INDEXER] Successfully downloaded compact scrip master.")
+                    downloaded_fresh_master = True
+                else:
+                    logger.warning(f"[INDEXER] Failed to download scrip master. Status code: {response.status_code}")
+            except Exception as e:
+                logger.error(f"[INDEXER] Failed to download scrip master: {e}")
+                
         # Scan each enabled instrument
         for name, inst in self.INSTRUMENTS.items():
             if not inst.get('enabled', False):
@@ -384,13 +430,19 @@ class Config:
                 continue
             
             cache_file = os.path.join(self.BASE_DIR, f"dhanhq_cache_{prefix}.csv")
-            if not os.path.exists(cache_file):
-                master_csv = os.path.join(self.BASE_DIR, 'dhanhq_securities_compact.csv')
+            is_cache_stale = downloaded_fresh_master
+            
+            if not is_cache_stale and os.path.exists(cache_file):
+                mtime_date = dt.fromtimestamp(os.path.getmtime(cache_file)).date()
+                if mtime_date < dt.now().date():
+                    is_cache_stale = True
+                    
+            if not os.path.exists(cache_file) or is_cache_stale:
                 if os.path.exists(master_csv):
-                    logger.info(f"[INDEXER] Cache file {cache_file} is missing. Attempting to build from {master_csv} for prefix {prefix}...")
+                    logger.info(f"[INDEXER] Regenerating cache file {cache_file} for prefix {prefix}...")
                     try:
                         import pandas as pd
-                        full_df = pd.read_csv(master_csv)
+                        full_df = pd.read_csv(master_csv, low_memory=False)
                         nifty_mask = full_df['SEM_TRADING_SYMBOL'].str.contains(f'{prefix}-', case=False, na=False)
                         option_mask = full_df['SEM_INSTRUMENT_NAME'].str.contains('OPT', case=False, na=False)
                         target_exch = 'BSE' if 'BSE' in inst.get('option_segment', 'NSE') else 'NSE'

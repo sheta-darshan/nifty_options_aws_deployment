@@ -159,14 +159,34 @@ class DhanAPIWrapper:
                             current_fails = DhanAPIWrapper._consecutive_failures
                         
                         if current_fails >= DhanAPIWrapper._MAX_CONSECUTIVE_FAILURES:
-                            os._exit(1)
+                            # H1 FIX: os._exit(1) hard-killed the process with no cleanup,
+                            # leaving open positions on the broker and sending no alert.
+                            # Now raise a clean exception that propagates to the InstrumentBot
+                            # run() handler, which sends a Telegram alert and stops gracefully.
+                            critical_msg = (
+                                f"CRITICAL: {current_fails} consecutive network failures. "
+                                f"Triggering graceful shutdown. Check connectivity immediately."
+                            )
+                            self.logger.critical(f"[CIRCUIT_BREAKER] {critical_msg}")
+                            if self.alert_manager:
+                                self.alert_manager.send_alert(
+                                    f"🚨 *Critical Network Failure*\n"
+                                    f"Bot experienced {current_fails} consecutive API failures.\n"
+                                    f"Initiating graceful shutdown. Verify connectivity & positions.",
+                                    header="Critical API Failure"
+                                )
+                            raise RuntimeError(critical_msg)
                     return None
         return None
     
     def get_historical_data(self, security_id: str, interval: int = 1, exchange_segment: str = 'IDX_I', instrument_type: str = 'INDEX', days: int = 7) -> Optional[pd.DataFrame]:
         """Fetch historical OHLC data for intraday with explicit time component"""
         try:
-            now = datetime.now()
+            # BUG-C3 FIX: datetime.now() returns server local time (UTC on AWS).
+            # Must use IST explicitly so date ranges align with NSE market hours.
+            import pytz as _pytz
+            _IST = _pytz.timezone('Asia/Kolkata')
+            now = datetime.now(_IST)
             
             # If days requested is greater than 80, fetch in chunks of 70 days to prevent API limit truncation
             if days > 80:
@@ -324,6 +344,16 @@ class DhanAPIWrapper:
         except Exception as e:
             self.logger.exception(f"Exception in get_positions: {e}")
             return []
+
+    def get_order_status(self, order_id: str) -> Optional[str]:
+        """Fetch order details from Dhan and return its status."""
+        try:
+            resp = self._make_request(self.dhan.get_order_by_id, order_id=order_id)
+            if resp and resp.get('status') == 'success' and resp.get('data'):
+                return resp['data'].get('orderStatus')
+        except Exception as e:
+            self.logger.error(f"Error fetching status for order {order_id}: {e}")
+        return None
 
     def place_order(self, security_id: str, transaction_type: str, quantity: int,
                    exchange_segment: str = "NSE_FNO", order_type: str = "MARKET",
@@ -678,4 +708,62 @@ class DhanAPIWrapper:
         except Exception as e:
             self.logger.error(f"[MARGIN_V2] Exception during calculate_multi_order_margin: {e}")
             return {}
+
+    def resolve_option_security_id(self, prefix: str, strike: float, option_type: str, expiry_date: str = None, expiry_index: int = 0) -> Optional[str]:
+        """
+        Resolve the Dhan security ID for an option contract using master_cache_index or sec_master_df.
+        """
+        prefix_upper = str(prefix).upper()
+        opt_type_upper = str(option_type).upper()
+        
+        # 1. Resolve expiry date if not provided
+        if not expiry_date:
+            try:
+                expiries = sorted(list(set(
+                    key[1] for key in self.config.master_cache_index.keys()
+                    if key[0] == prefix_upper
+                )))
+                if len(expiries) > expiry_index:
+                    expiry_date = expiries[expiry_index]
+            except Exception:
+                pass
+
+        # 2. Check master_cache_index lookup
+        if expiry_date:
+            strike_int = int(strike) if isinstance(strike, (int, float)) and float(strike).is_integer() else strike
+            key = (prefix_upper, expiry_date, strike_int, opt_type_upper)
+            if key in self.config.master_cache_index:
+                return str(self.config.master_cache_index[key][0])
+            key_float = (prefix_upper, expiry_date, float(strike), opt_type_upper)
+            if key_float in self.config.master_cache_index:
+                return str(self.config.master_cache_index[key_float][0])
+
+        # 3. Fallback: Search master_cache_index ignoring exact expiry match (nearest matching expiry)
+        try:
+            for key, val in self.config.master_cache_index.items():
+                if key[0] == prefix_upper and str(key[2]) == str(int(strike) if isinstance(strike, (int, float)) and float(strike).is_integer() else strike) and key[3] == opt_type_upper:
+                    return str(val[0])
+        except Exception:
+            pass
+
+        # 4. Fallback: Search sec_master_df dataframe if available
+        sec_master_df = getattr(self.config, "sec_master_df", None)
+        if sec_master_df is not None and not sec_master_df.empty:
+            try:
+                strike_str = str(int(strike)) if isinstance(strike, (int, float)) and float(strike).is_integer() else str(strike)
+                matching = sec_master_df[
+                    (sec_master_df['SEM_TRADING_SYMBOL'].str.contains(f"-{strike_str}-", case=False, na=False)) &
+                    (sec_master_df['SEM_TRADING_SYMBOL'].str.endswith(opt_type_upper, na=False))
+                ]
+                if expiry_date and not matching.empty:
+                    matching_exp = matching[matching['SEM_EXPIRY_DATE'].str.startswith(expiry_date, na=False)]
+                    if not matching_exp.empty:
+                        matching = matching_exp
+                if not matching.empty:
+                    return str(matching.iloc[0]['SEM_SMST_SECURITY_ID'])
+            except Exception as ex:
+                self.logger.warning(f"[RESOLVE_SEC_ID] sec_master_df lookup failed: {ex}")
+
+        return None
+
 

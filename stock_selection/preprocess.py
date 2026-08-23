@@ -51,7 +51,16 @@ def precompute_nifty_features():
         df_by_date = {d: grp for d, grp in df.groupby(df.index.date)}
         nifty_features = {}
         for d, day_df in df_by_date.items():
-            last_30_df = day_df.between_time('15:00', '15:29')
+            from datetime import date
+            if d >= date(2026, 8, 3):
+                last_30_df = day_df.between_time('14:45', '15:14')
+            else:
+                max_time = day_df.index.max().time() if not day_df.empty else None
+                if max_time and max_time >= dt_time(15, 25):
+                    last_30_df = day_df.between_time('15:00', '15:29')
+                else:
+                    last_30_df = day_df.between_time('14:45', '15:14')
+                
             if len(last_30_df) < 25:
                 continue
             ret_30m = (last_30_df['close'].iloc[-1] - last_30_df['open'].iloc[0]) / (last_30_df['open'].iloc[0] + 1e-8)
@@ -166,8 +175,17 @@ def process_single_stock(symbol, run_strategy_backtest=True, nifty_features=None
             day_df = df_by_date[d]
             next_day_df = df_by_date[dates[idx + 1]]
 
-            # Extract the last 30 minutes of day T: 15:00 to 15:29 inclusive
-            last_30_df = day_df.between_time('15:00', '15:29')
+            # Extract the last 30 minutes of day T dynamically
+            from datetime import date
+            if d >= date(2026, 8, 3):
+                last_30_df = day_df.between_time('14:45', '15:14')
+            else:
+                max_time = day_df.index.max().time() if not day_df.empty else None
+                if max_time and max_time >= dt_time(15, 25):
+                    last_30_df = day_df.between_time('15:00', '15:29')
+                else:
+                    last_30_df = day_df.between_time('14:45', '15:14')
+                
             if len(last_30_df) < 25:
                 continue  # Skip days with incomplete close data
 

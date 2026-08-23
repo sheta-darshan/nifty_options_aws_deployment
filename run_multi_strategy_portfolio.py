@@ -13,9 +13,9 @@ print("=========================================================================
 
 parser = argparse.ArgumentParser(description="Multi-Strategy Combined Portfolio Backtest Runner")
 parser.add_argument("symbols", nargs="*", default=["NIFTY"], help="Instruments to backtest (e.g., NIFTY)")
-parser.add_argument("--strategies", "-s", type=int, nargs="+", default=[10, 18, 19], help="Strategy indices to run simultaneously (e.g., --strategies 10 18 19)")
-parser.add_argument("--leg-mode", "-l", choices=["BUY", "SELL", "BOTH"], default="BOTH", help="Option leg execution mode")
-parser.add_argument("--days", "-d", type=int, default=365, help="Number of days of history to backtest (default: 365)")
+parser.add_argument("--strategies", "-s", type=int, nargs="+", default=[14, 19, 20], help="Strategy indices to run simultaneously (e.g., --strategies 14 19 20)")
+parser.add_argument("--leg-mode", "-l", choices=["AUTO", "BUY", "SELL", "BOTH"], default="AUTO", help="Option leg execution mode (AUTO automatically sets BUY for 14/19 and SELL for 20)")
+parser.add_argument("--days", "-d", type=int, default=100, help="Number of days of history to backtest (default: 100)")
 
 args = parser.parse_args()
 
@@ -31,14 +31,22 @@ all_strategy_trades = []
 
 for s_id in strategy_ids:
     config = BacktestConfig()
-    for i in range(1, 20):
+    for i in range(1, 23):
         setattr(config, f"ENABLE_STRATEGY_{i}", False)
         
     setattr(config, f"ENABLE_STRATEGY_{s_id}", True)
     config.apply_strategy_defaults(f"Strategy_{s_id}")
-    config.LEG_MODE = args.leg_mode
     
-    print(f"[RUNNING] Backtesting Strategy_{s_id} on {symbol}...")
+    # Auto Leg Mode Routing
+    if args.leg_mode == "AUTO":
+        if s_id in [14, 19]:
+            config.LEG_MODE = "BUY"
+        else:
+            config.LEG_MODE = "BOTH"
+    else:
+        config.LEG_MODE = args.leg_mode
+        
+    print(f"[RUNNING] Backtesting Strategy_{s_id} (Leg Mode: {config.LEG_MODE}) on {symbol}...")
     engine = SimulationEngine(config=config, instrument_name=symbol, backtest_days=args.days)
     engine.load_data()
     res = engine.run(write_to_csv=False)
@@ -64,7 +72,13 @@ if all_strategy_trades:
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else np.inf
     avg_pnl = net_pnl / total_trades
     
-    df_combined.to_csv("multi_strategy_portfolio_trades.csv", index=False)
+    try:
+        df_combined.to_csv("multi_strategy_portfolio_trades.csv", index=False)
+        out_file = "multi_strategy_portfolio_trades.csv"
+    except PermissionError:
+        out_file = "multi_strategy_portfolio_trades_latest.csv"
+        df_combined.to_csv(out_file, index=False)
+        print(f"[WARNING] 'multi_strategy_portfolio_trades.csv' is currently open in Excel. Saved results to '{out_file}' instead.")
     
     print("\n" + "="*95)
     print("                    CONSOLIDATED MULTI-STRATEGY PORTFOLIO REPORT                 ")

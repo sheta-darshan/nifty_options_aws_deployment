@@ -95,10 +95,23 @@ class ThreadedBotManager:
                 
                 # 1. Periodically reload instruments (every 5 minutes)
                 if now - last_instr_reload > 300:
-                    if self.config.reload_instruments():
+                    reload_ok = self.config.reload_instruments()
+                    if reload_ok:
                         self.logger.info("[MONITOR] Instruments reloaded from disk.")
                         self.config.build_master_index(self.logger)
                         self._sync_bots()
+                    elif reload_ok is None:
+                        # H4 FIX: reload returned None due to Exception/JSON error during reload —
+                        # instruments.json is corrupt or unreadable. Alert the operator.
+                        self.logger.error("[MONITOR] instruments.json reload FAILED. Bot running on stale config!")
+                        if self.alert_manager:
+                            self.alert_manager.send_alert(
+                                "⚠️ *instruments.json Reload Failed*\n"
+                                "Could not parse updated instruments.json. "
+                                "Bot is running on the last valid config.\n"
+                                "Please check the file for JSON syntax errors.",
+                                header="Config Reload Error"
+                            )
                     last_instr_reload = now
 
                 # 2. Cleanup stale open orders (older than 3 mins)
@@ -195,9 +208,14 @@ class ThreadedBotManager:
 
     def _sync_bots(self):
         """Create and start threads for newly enabled instruments"""
-        active_names = {b.instrument_name for b in self.bots if b.is_alive()}
+        # M2 FIX: Prune dead bots FIRST so idx_count / stk_count only reflect
+        # actually-alive threads. Previously dead bots were counted, causing new
+        # instruments to receive incorrectly large offsets and collide on poll timing.
+        self.bots = [b for b in self.bots if b.is_alive()]
+
+        active_names = {b.instrument_name for b in self.bots}
         
-        # Determine current counts for staggering
+        # Determine current counts for staggering (using only live bots after pruning above)
         idx_count = len([b for b in self.bots if b.instrument_name in ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX', 'MIDCPNIFTY']])
         stk_count = len(self.bots) - idx_count
         

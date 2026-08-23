@@ -170,6 +170,8 @@ class SimulationEngine:
             "points_sl_sell": 0,
             "points_target_sell": 0,
             "points_trail_sell": 0,
+            "max_loss_buy": 0,
+            "max_loss_sell": 0,
             "local_exit_monitoring": None,
             "gatekeeper_enabled": 0,
             "gatekeeper_time_filter_minutes": 20,
@@ -186,7 +188,7 @@ class SimulationEngine:
             # Apply strategy-specific overrides if active
             strat_name = self.strategy.name if self.strategy else getattr(self.config, 'active_strategy', None)
             if not strat_name:
-                for i in range(1, 19):
+                for i in range(1, 23):
                     if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
                         strat_name = f"Strategy_{i}"
                         break
@@ -297,7 +299,7 @@ class SimulationEngine:
                 self.df_spot = self.df_spot[self.df_spot.index.notna()]
                 self.df_spot.index = pd.DatetimeIndex(self.df_spot.index)
             # Data already loaded (e.g. from optimizer)
-            self.df_spot = self.df_spot.between_time('09:15', '15:30')
+            self.df_spot = self.df_spot.between_time('09:15', '15:40')
             self._apply_fno_inception_filter()
             self._compute_median_atr_pct()
             return
@@ -341,7 +343,7 @@ class SimulationEngine:
         self.df_spot = self.df_spot[self.df_spot.index.notna()]
         self.df_spot.index = pd.DatetimeIndex(self.df_spot.index)
         
-        self.df_spot = self.df_spot.between_time('09:15', '15:30')
+        self.df_spot = self.df_spot.between_time('09:15', '15:40')
         
         import logging
         from live_trade_fixed import process_market_data
@@ -647,7 +649,7 @@ class SimulationEngine:
             expiry_date_str = self._get_actual_expiry_date(trade_date, expiry_index)
         cache_key = (prefix, strike, option_type.upper(), expiry_date_str, date_str)
         
-        if cache_key in self._opt_df_cache:
+        if cache_key in self._opt_df_cache and self._opt_df_cache[cache_key] is not None:
             return self._opt_df_cache[cache_key]
             
         df = self._get_option_candles_uncached(strike, option_type, trade_date, relative_strike, expiry_date_str)
@@ -1333,8 +1335,9 @@ class SimulationEngine:
         if os.path.exists(cache_path):
             try:
                 if os.path.getsize(cache_path) < 100:
-                    return pd.DataFrame()
-                df = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
+                    os.remove(cache_path)
+                else:
+                    df = pd.read_csv(cache_path, index_col='timestamp', parse_dates=True)
                 
                 # Check if this cached file is complete relative to our spot data
                 if self.df_spot is not None and not df.empty:
@@ -1383,9 +1386,9 @@ class SimulationEngine:
                 "Accept": "application/json"
             }
             
-            # Check if the contract has already expired relative to today
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            is_expired = expiry_str < today_str
+            # If the contract expiry date is strictly in the past, route directly to the stitcher
+            expiry_dt = datetime.strptime(expiry_str, "%Y-%m-%d")
+            is_expired = expiry_dt.date() < datetime.now().date()
             
             if is_expired:
                 print(f"[INFO] Contract expiring {expiry_str} has already expired. Skipping standard intraday API and using stitching.")
@@ -1400,13 +1403,14 @@ class SimulationEngine:
                 if opt_sec_id:
                     print(f"[INFO] Resolved security ID {opt_sec_id} for contract {self.instrument_name} {strike} {option_type} expiring {expiry_str}")
                     intraday_url = "https://api.dhan.co/v2/charts/intraday"
+                    closing_str = "15:40:00" if t_date_obj >= datetime.strptime("2026-08-03", "%Y-%m-%d").date() else "15:30:00"
                     intraday_payload = {
                         "securityId": str(opt_sec_id),
                         "exchangeSegment": opt_seg,
                         "instrument": opt_inst,
                         "interval": "1",
                         "fromDate": f"{date_str} 09:15:00",
-                        "toDate": f"{date_str} 15:30:00"
+                        "toDate": f"{date_str} {closing_str}"
                     }
                     
                     for attempt in range(3):
@@ -1549,7 +1553,10 @@ class SimulationEngine:
         
         spot_atr = self.df_spot['ATR'].values
         spot_signals = self.df_spot['Signal'].values
-        spot_source = self.df_spot['Signal_Source'].values
+        if 'Signal_Source' in self.df_spot.columns:
+            spot_source = self.df_spot['Signal_Source'].values
+        else:
+            spot_source = np.full(len(self.df_spot), self.strategy.name if self.strategy else "Unknown", dtype=object)
         timestamps = self.df_spot.index
         times = [t.time() for t in timestamps]
         
@@ -1699,7 +1706,7 @@ class SimulationEngine:
 
                 # Expiry Day Block Filter
                 if self.inst_config.get("block_expiry_day_trades", 0) == 1:
-                    leg_mode = getattr(self.config, "LEG_MODE", "BUY").upper()
+                    leg_mode = self.inst_config.get("LEG_MODE", self.inst_config.get("leg_mode", getattr(self.config, "LEG_MODE", "BUY"))).upper()
                     strat_mode = self.inst_config.get('option_strategy_mode', 'DIRECT')
                     is_buying_trade = False
                     if strat_mode == "DIRECT":
@@ -1744,9 +1751,10 @@ class SimulationEngine:
                         execution_mode = self.inst_config.get("execution_mode", "OPTION")
                         if execution_mode == "STOCK":
                             stock_action = None
-                            if signal == 1 and self.config.LEG_MODE in ["BUY", "BOTH"]:
+                            leg_mode = self.inst_config.get("LEG_MODE", self.inst_config.get("leg_mode", getattr(self.config, "LEG_MODE", "BUY"))).upper()
+                            if signal == 1 and leg_mode in ["BUY", "BOTH"]:
                                 stock_action = "BUY"
-                            elif signal == -1 and self.config.LEG_MODE in ["SELL", "BOTH"]:
+                            elif signal == -1 and leg_mode in ["SELL", "BOTH"]:
                                 stock_action = "SELL"
                                 
                             if stock_action:
@@ -1794,13 +1802,15 @@ class SimulationEngine:
                             atm_strike = int(atm_strike)
                         
                         strat_mode = self.inst_config.get("option_strategy_mode", "DIRECT")
+                        if str(strat_mode).upper() in ("2", "OPTION_WRITING", "DIRECT_SELL"):
+                            strat_mode = "DIRECT"
                         width = self.inst_config.get("strategy_leg_width", 1)
                         
                         # Determine legs to enter based on strategy_mode, signal & leg_mode
                         base_legs = [] # List of (type, is_short, offset)
                         
                         if strat_mode == "DIRECT":
-                            leg_mode = getattr(self.config, "LEG_MODE", "BUY").upper()
+                            leg_mode = self.inst_config.get("LEG_MODE", self.inst_config.get("leg_mode", getattr(self.config, "LEG_MODE", "BUY"))).upper()
                             if leg_mode == "BUY":
                                 if signal == 1:
                                     base_legs.append(("CE", False, strike_offset_buy))
@@ -2181,6 +2191,59 @@ class SimulationEngine:
                 
             spot_sl_price = 0.0
             spot_target_price = 0.0
+        elif exit_mode == "PCT":
+            # ── Approach E: percentage-of-premium SL + INR profit/loss caps ──────────
+            # Parameters read from inst_config (strategy_overrides.Strategy_20):
+            #   pct_sl_sell        : SL as a fraction of entry premium  (e.g. 0.35 → 35% above entry)
+            #   pct_sl_buy         : SL as a fraction below entry for long options
+            #   use_trailing_sl    : bool  – ratchet SL down as premium decays
+            #   trailing_sl_pct    : the same fraction used for the trailing ratchet
+            #   pct_be_threshold_sell : fraction of premium decay that locks SL at breakeven
+            #   pct_be_buffer_sell : thin buffer above entry when locking breakeven
+            #   profit_target_sell : INR profit cap (converted to points via lot_size)
+            #   profit_target_buy  : INR profit cap for long options
+            #   max_loss_sell      : INR hard-loss cap (handled by Max_Loss_INR in trade dict)
+            spot_sl_price = 0.0
+            spot_target_price = 0.0
+
+            if not is_short:
+                # Long option: SL is a fixed % below entry
+                pct_sl = float(self.inst_config.get('pct_sl_buy', self.inst_config.get('pct_sl_sell', 0.35)))
+                sl_price = round(actual_entry * (1.0 - pct_sl), 2)
+                sl_price = max(sl_price, 0.05)
+
+                # Profit target: INR cap → points
+                fixed_target_buy = float(self.inst_config.get('profit_target_buy', 0))
+                if fixed_target_buy > 0:
+                    opt_tp_points = round(fixed_target_buy / lot_size, 2)
+                    tp_price = actual_entry + opt_tp_points
+                else:
+                    tp_price = 999999.0
+
+                # Trailing jump: same pct ratcheted on the way up
+                use_trail = self.inst_config.get('use_trailing_sl', False)
+                trail_pct = float(self.inst_config.get('trailing_sl_pct', pct_sl))
+                opt_trail_jump = round(actual_entry * trail_pct, 2) if use_trail else 0.0
+            else:
+                # Short option: SL is a fixed % above entry premium
+                pct_sl = float(self.inst_config.get('pct_sl_sell', 0.35))
+                sl_price = round(actual_entry * (1.0 + pct_sl), 2)
+
+                # Profit target: INR cap → points
+                fixed_target_sell = float(self.inst_config.get('profit_target_sell', 0))
+                if fixed_target_sell > 0:
+                    opt_tp_points = round(fixed_target_sell / lot_size, 2)
+                    tp_price = max(round(actual_entry - opt_tp_points, 2), 0.05)
+                else:
+                    tp_price = 0.05  # decay to near-zero
+
+                # Trailing jump: ratchet SL down as premium decays
+                use_trail = self.inst_config.get('use_trailing_sl', False)
+                trail_pct = float(self.inst_config.get('trailing_sl_pct', pct_sl))
+                opt_trail_jump = round(actual_entry * trail_pct, 2) if use_trail else 0.0
+
+            if tp_price <= 0 and is_short:
+                tp_price = 0.05
         else:
             # Legacy ATR-based option stop/target logic
             spot_sl_price = 0.0
@@ -2227,6 +2290,21 @@ class SimulationEngine:
         # Determine breakeven multiplier
         if exit_mode == "POINTS":
             breakeven_mult = float(self.inst_config.get("points_be_buy" if not is_short else "points_be_sell", 0.0))
+        elif exit_mode == "PCT":
+            # For PCT mode the breakeven is encoded as a threshold fraction of premium decay.
+            # We convert it to a multiplier of initial_sl_points so the generic breakeven
+            # trigger in _manage_trade_fast (trigger = entry ± initial_sl * be_mult) works unchanged.
+            # threshold means: "once premium falls to (1-threshold)*entry, lock SL at entry+buffer"
+            # buffer is small, e.g. entry * pct_be_buffer_sell (default 0.02 → 2% above entry for SELLs)
+            if not is_short:
+                be_threshold = float(self.inst_config.get('pct_be_threshold_buy', self.inst_config.get('pct_be_threshold_sell', 0.50)))
+            else:
+                be_threshold = float(self.inst_config.get('pct_be_threshold_sell', 0.50))
+            # The initial_sl_points will equal entry * pct_sl.  We want trigger when price reaches
+            # entry * (1 - be_threshold) [short: price = entry*(1-threshold)].
+            # trigger = entry - initial_sl * be_mult  →  be_mult = (1 - (1-threshold)) / pct_sl = threshold / pct_sl
+            pct_sl_used = float(self.inst_config.get('pct_sl_sell' if is_short else 'pct_sl_buy', 0.35))
+            breakeven_mult = round(be_threshold / pct_sl_used, 4) if pct_sl_used > 0 else 0.0
         else:
             breakeven_mult = float(self.inst_config.get("atr_be_buy" if not is_short else "atr_be_sell", 0.0))
 
@@ -2280,6 +2358,7 @@ class SimulationEngine:
             "Breakeven_Mult": breakeven_mult,
             "Initial_SL_Points": abs(actual_entry - sl_price) if (sl_price > 0 and sl_price != 999999.0) else 0.0,
             "Breakeven_Triggered": False,
+            "Max_Loss_INR": float(self.inst_config.get('max_loss_sell' if is_short else 'max_loss_buy', 0)),
             "opt_df": opt_df,
             "Regime_Trend": regime_trend,
             "Regime_Vol": regime_vol
@@ -2399,6 +2478,22 @@ class SimulationEngine:
                                 trade['spot_sl_price'] = new_sl
             return False
 
+        # Check Max Loss INR cap (applies to both BUY and SELL trades)
+        max_loss_inr = trade.get("Max_Loss_INR", 0)
+        if max_loss_inr > 0:
+            qty = trade.get("Qty", 1)
+            if not is_short:
+                unrealized_pnl = (open_val - trade['Entry_Price']) * qty
+            else:
+                unrealized_pnl = (trade['Entry_Price'] - open_val) * qty
+            if unrealized_pnl <= -max_loss_inr:
+                if not is_short:
+                    exit_price = self.apply_slippage(open_val, 'SELL', is_stock=is_stock)
+                else:
+                    exit_price = self.apply_slippage(open_val, 'BUY', is_stock=is_stock)
+                self._close_trade_fast_exit(timestamp, trade, "MaxLoss", exit_price)
+                return True
+
         # Legacy ATR-based option premium exit logic
         if not is_short:
             # 1. Check if SL was hit first at open (using the current SL_Price)
@@ -2460,7 +2555,11 @@ class SimulationEngine:
             if be_mult > 0.0 and not trade.get("Breakeven_Triggered", False) and trade.get("Initial_SL_Points", 0.0) > 0.0:
                 trigger_level = trade["Entry_Price"] - (trade["Initial_SL_Points"] * be_mult)
                 if low <= trigger_level:
-                    trade["SL_Price"] = min(trade["SL_Price"], trade["Entry_Price"])
+                    # PCT mode: lock SL at entry + buffer (e.g. entry * 1.02) so the SL sits
+                    # just above entry — guarantees near-zero loss if SL is subsequently hit.
+                    pct_be_buffer = float(self.inst_config.get("pct_be_buffer_sell", 0.0)) if trade.get("exit_mode") == "PCT" else 0.0
+                    be_lock_price = round(trade["Entry_Price"] * (1.0 + pct_be_buffer), 2) if pct_be_buffer > 0 else trade["Entry_Price"]
+                    trade["SL_Price"] = min(trade["SL_Price"], be_lock_price)
                     trade["Breakeven_Triggered"] = True
 
             # 4. Check if SL is hit during the candle

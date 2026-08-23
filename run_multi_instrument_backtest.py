@@ -106,7 +106,7 @@ def main():
     # 2. Parse command line arguments
     parser = argparse.ArgumentParser(description="Dynamic Multi-Instrument Parity Backtesting Runner")
     parser.add_argument("symbols", nargs="*", help="Instruments to backtest (e.g., NIFTY BHEL). If omitted, reads enabled from instruments.json")
-    parser.add_argument("--strategy", "-s", type=int, choices=list(range(1, 21)), help="Strategy index to run (1-20). If omitted, uses active strategy from config/env")
+    parser.add_argument("--strategy", "-s", type=int, choices=list(range(1, 24)), help="Strategy index to run (1-23). If omitted, uses active strategy from config/env")
     parser.add_argument("--leg-mode", "-l", choices=["BUY", "SELL", "BOTH"], help="Option leg execution mode (BUY, SELL, BOTH)")
     parser.add_argument("--offline", "-o", action="store_true", help="Run backtest in offline mode using preloaded ATM option files")
     parser.add_argument("--days", "-d", type=int, default=30, help="Number of days of history to backtest (default: 30)")
@@ -139,14 +139,14 @@ def main():
         
     # Align Strategy
     if args.strategy:
-        for i in range(1, 21):
+        for i in range(1, 23):
             setattr(config, f"ENABLE_STRATEGY_{i}", False)
         setattr(config, f"ENABLE_STRATEGY_{args.strategy}", True)
         config.apply_strategy_defaults(f"Strategy_{args.strategy}")
         
     # Detect the active strategy
     active_strat = "None"
-    for i in range(1, 21):
+    for i in range(1, 23):
         if getattr(config, f"ENABLE_STRATEGY_{i}", False):
             active_strat = f"Strategy_{i}"
             break
@@ -169,96 +169,7 @@ def main():
             # Automatically loads/downloads the spot data
             engine.load_data()
             
-            # Inject Strategy 20 signals or run Strategy 20 engine
-            if active_strat == "Strategy_20":
-                from strategies.strategy_20 import Strategy_20
-                strat = Strategy_20()
-                engine.df_spot = strat.generate_signals(engine.df_spot)
-                
-                from research_and_development.backtest_strategy20_dynamic import run_dynamic_backtest
-                
-                target_long_p = engine.inst_config.get("target_long_premium", 200.0)
-                target_otm_p = engine.inst_config.get("target_short1_premium", 120.0)
-                target_itm_p = engine.inst_config.get("target_short2_premium", 300.0)
-                
-                df_trades = run_dynamic_backtest(
-                    target_monthly_p=target_long_p,
-                    target_otm_p=target_otm_p,
-                    target_itm_p=target_itm_p,
-                    target_exit_pnl=5000.0,
-                    stop_loss_pnl=-4000.0
-                )
-                
-                if df_trades.empty:
-                    results = pd.DataFrame()
-                else:
-                    trade_both_sides = engine.inst_config.get("trade_both_sides", 0)
-                    
-                    rows = []
-                    for _, r in df_trades.iterrows():
-                        stance = r['Stance']
-                        entry_date = r['Entry_Date']
-                        exit_date = r['Exit_Date']
-                        
-                        if trade_both_sides == 0:
-                            entry_ts = pd.to_datetime(entry_date + " 09:20:00")
-                            if entry_ts in engine.df_spot.index:
-                                regime = engine.df_spot.loc[entry_ts, 'regime']
-                                if stance != regime:
-                                    continue
-                                    
-                        opt_type = 'CE' if 'CALL' in stance else 'PE'
-                        is_short = r['Leg'] in ['WEEKLY_SHORT1', 'WEEKLY_SHORT2']
-                        qty = 195 if r['Leg'] == 'MONTHLY_LONG' else 65
-                        
-                        if is_short:
-                            charges_val = engine.calculate_charges(r['Exit_Px'], r['Entry_Px'], qty)
-                        else:
-                            charges_val = engine.calculate_charges(r['Entry_Px'], r['Exit_Px'], qty)
-                        
-                        rows.append({
-                            'Entry_Time': entry_date + " 09:20:00",
-                            'Type': opt_type,
-                            'Is_Short': is_short,
-                            'Trade_Type': 'SELL' if is_short else 'BUY',
-                            'Option_Symbol': f"NIFTY {r['Strike']} {opt_type}",
-                            'Strike': r['Strike'],
-                            'Expiry': r['Expiry_Date'],
-                            'Strategy': 'Strategy_20',
-                            'Entry_Price': r['Entry_Px'],
-                            'Qty': qty,
-                            'Target_Price': 0.0,
-                            'SL_Price': 0.0,
-                            'Initial_SL': 0.0,
-                            'Spot_ATR': 0.0,
-                            'Entry_Spot': r['Entry_Spot'],
-                            'Max_Favorable_Excursion': r['Entry_Px'],
-                            'Trailing_Trigger_Points': 0.0,
-                            'Trailing_Jump_Points': 0.0,
-                            'exit_mode': 'EXPIRED' if r['Status'] == 'SETTLED' else 'MANUAL',
-                            'spot_sl_price': 0.0,
-                            'spot_target_price': 0.0,
-                            'spot_initial_sl': 0.0,
-                            'spot_mfe': r['Entry_Spot'],
-                            'spot_atr': 0.0,
-                            'Breakeven_Mult': 0.0,
-                            'Initial_SL_Points': 0.0,
-                            'Breakeven_Triggered': False,
-                            'Regime_Trend': 'NEUTRAL',
-                            'Regime_Vol': 'LOW_VIX',
-                            'Exit_Time': exit_date + " 15:20:00",
-                            'Exit_Price': r['Exit_Px'],
-                            'Exit_Spot': r['Exit_Spot'],
-                            'Gross_PnL': r['Net_PnL'],
-                            'Charges': charges_val,
-                            'PnL': r['Net_PnL'] - charges_val,
-                            'Exit_Reason': r['Status'],
-                            'Max_Excursion_Pts': 0.0
-                        })
-                    results = pd.DataFrame(rows)
-            else:
-                # Run standard single-leg parity backtest
-                results = engine.run(write_to_csv=False)
+            results = engine.run(write_to_csv=False)
             
             if not results.empty:
                 total_trades = len(results)

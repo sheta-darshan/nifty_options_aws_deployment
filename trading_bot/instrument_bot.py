@@ -20,6 +20,7 @@ from trading_bot.account_manager import MultiAccountManager
 from trading_bot.data_pipeline import (
     process_market_data,
     get_latest_signal,
+    get_all_latest_signals,
     load_security_master,
     choose_option_instruments,
     choose_strategy_instruments,
@@ -54,12 +55,24 @@ class InstrumentBot(threading.Thread):
         
         # Independent State
         self.cooldown_until: Optional[datetime] = None
+        self.strategy_cooldowns = {}
+        self.last_heartbeat_alert_time = None
+        self.order_latency_locks = {}  # Prevent order entry burst triggers
+        # H2 FIX: Per-strategy threading lock prevents two simultaneously firing strategies
+        # from both passing the active-position check before either order completes.
+        self.strategy_entry_locks: Dict[str, threading.Lock] = {}
         self.last_processed_candle = None
         self.df_spot = None
+        # M1 FIX: Cache expiry_list API responses to avoid a live API call on every signal.
+        # Entries: {security_id: {'expiry_list': [...], 'cached_at': datetime}}
+        self._expiry_cache: Dict[str, dict] = {}
         
-        # Restore Daily Count from Disk (Per Account)
-        restored_counts = get_today_trade_count(config.TRADE_LOG_CSV, instrument_name, config.TIMEZONE)
-        self.daily_trade_counts = restored_counts if isinstance(restored_counts, dict) else {}
+        # Restore Daily Count from Disk (Per Strategy, Per Account)
+        self.daily_trade_counts = {}
+        for i in range(1, 23):
+            strat_name = f"Strategy_{i}"
+            restored = get_today_trade_count(config.TRADE_LOG_CSV, instrument_name, config.TIMEZONE, strategy_name=strat_name)
+            self.daily_trade_counts[strat_name] = restored if isinstance(restored, dict) else {}
         
         self.active_trades = 0
         self.poll_offset = 0  # Default 0s
@@ -71,6 +84,89 @@ class InstrumentBot(threading.Thread):
         self.TYPE = self.config.INSTRUMENTS[self.name].get('type', 'INDEX') # INDEX or STOCK
         
         self.logger.info(f"[{self.name}] Initialized. Type={self.TYPE}, MaxRunning={self.MAX_ACTIVE}, DailyLimit={self.DAILY_LIMIT}, RestoredCounts={self.daily_trade_counts}")
+
+    def get_strategy_instrument_config(self, strategy_name: str) -> dict:
+        """
+        Dynamically get the config parameters for this instrument under a specific strategy.
+        Copies the base configuration and applies strategy-specific overrides.
+        """
+        import copy
+        clean_source = getattr(self.config, "BASE_INSTRUMENTS", self.config.INSTRUMENTS)
+        base_cfg = copy.deepcopy(clean_source.get(self.name, {}))
+        overrides = base_cfg.get("strategy_overrides", {})
+        if isinstance(overrides, dict) and strategy_name in overrides:
+            strat_cfg = overrides[strategy_name]
+            if isinstance(strat_cfg, dict):
+                for k, v in strat_cfg.items():
+                    base_cfg[k] = v
+        return base_cfg
+
+    def should_carry_forward(self, strategy_name: str = "Strategy_3") -> bool:
+        """
+        Check if carry_forward is enabled for the specified strategy.
+        Falls back to global config.CARRY_FORWARD if not explicitly set in instruments.json.
+        """
+        inst_cfg = self.get_strategy_instrument_config(strategy_name)
+        if "carry_forward" in inst_cfg:
+            val = inst_cfg["carry_forward"]
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, (int, float)):
+                return bool(val)
+            if isinstance(val, str):
+                return val.strip().lower() in ("true", "1", "yes")
+        return getattr(self.config, "CARRY_FORWARD", True)
+
+    def reconcile_positions_with_broker(self):
+        """
+        Reconcile local self.state.positions with active broker positions.
+        Prunes local entries that are no longer open on the broker.
+        """
+        self.logger.info(f"[{self.name}] Reconciling local positions with broker...")
+        broker_sec_ids = set()
+        try:
+            accounts = self.order_manager.get_accounts()
+            for acc in accounts:
+                acc_api = acc['api']
+                try:
+                    pos_list = acc_api.get_positions()
+                    if pos_list:
+                        for pos in pos_list:
+                            net_qty = safe_int(pos.get('netQty', 0))
+                            if net_qty != 0:
+                                broker_sec_ids.add(str(pos.get('securityId')))
+                except Exception as e:
+                    self.logger.error(f"[{self.name}] Reconcile failed to fetch positions for {acc['name']}: {e}")
+            
+            # Prune local positions that aren't on the broker
+            to_remove = []
+            with self.state.lock:
+                for sec_id, pos in self.state.positions.items():
+                    if pos.get('instrument') == self.name:
+                        if sec_id not in broker_sec_ids:
+                            self.logger.warning(f"[{self.name}] Reconcile: Pruning stale local position {sec_id} ({pos.get('symbol')}) not found on broker.")
+                            to_remove.append(sec_id)
+                for sec_id in to_remove:
+                    self.state.positions.pop(sec_id, None)
+            if to_remove:
+                self.state.save_state()
+        except Exception as e:
+            self.logger.error(f"[{self.name}] Reconcile failed: {e}")
+
+    def _enforce_order_stagger(self):
+        """
+        Enforce a minimum spacing (e.g. 500ms) between consecutive order placements
+        globally across all instrument bot threads.
+        """
+        with self.state.lock:
+            last_global_order = getattr(self.state, "last_order_timestamp", 0.0)
+            now = time.time()
+            elapsed = now - last_global_order
+            if elapsed < 0.5:
+                sleep_time = 0.5 - elapsed
+                self.logger.info(f"[{self.name}] [STAGGER] Spacing order placement. Sleeping for {sleep_time:.2f}s...")
+                time.sleep(sleep_time)
+            self.state.last_order_timestamp = time.time()
 
     def _validate_gatekeeper_live(self, target_strike, option_type_str, is_short=False) -> bool:
         """
@@ -334,6 +430,9 @@ class InstrumentBot(threading.Thread):
         
         # Startup Alignment
         self._initial_alignment()
+        
+        # Reconcile local state with broker positions to clean up stale entries
+        self.reconcile_positions_with_broker()
 
         # Start high-frequency local stop monitoring loop
         threading.Thread(target=self._local_monitoring_loop, daemon=True).start()
@@ -432,17 +531,12 @@ class InstrumentBot(threading.Thread):
     def process_cycle(self):
         cycle_start = time.time()
         
-        if self.cooldown_until and datetime.now(self.config.TIMEZONE) < self.cooldown_until:
-             return
-
-        
         security_id = self.config.INSTRUMENTS[self.name]['security_id']
         prefix = self.config.INSTRUMENTS[self.name]['fno_prefix']
         
         # Determine Segment
         if self.TYPE == 'OPTION':
             exch_seg = self.config.INSTRUMENTS[self.name].get('exchange_segment', 'NSE_FNO')
-            # Check for custom instrument_type, else infer OPTIDX vs OPTSTK
             inst_type = self.config.INSTRUMENTS[self.name].get('instrument_type')
             if not inst_type:
                 fno_prefix = self.config.INSTRUMENTS[self.name].get('fno_prefix', self.name).upper()
@@ -474,7 +568,7 @@ class InstrumentBot(threading.Thread):
             if self.consecutive_failures >= 10 and self.consecutive_failures % 10 == 0:
                 if self.alert_manager:
                      self.alert_manager.send_alert(f"🚨 Bot `{self.name}` still failing (Failed {self.consecutive_failures} times). Pausing cycle for 5 minutes.")
-                time.sleep(300) # Cooldown to avoid completely spamming API/Logs
+                time.sleep(300)
                 
             return
 
@@ -488,29 +582,44 @@ class InstrumentBot(threading.Thread):
         if df_1min.empty: return
         self.df_spot = df_1min
         
-        # 3. Get Signal
-        signal, atr_val, source = get_latest_signal(df_1min, self.logger, self.config)
+        # 3. Get Signals across all active strategies
+        active_signals = get_all_latest_signals(df_1min, self.logger, self.config)
         current_candle_time = df_1min.index[-1]
         
         # 4. New Candle Check
         if self.last_processed_candle != current_candle_time:
             # Latency Check
             candle_delay = (datetime.now(self.config.TIMEZONE) - current_candle_time).total_seconds()
-            self.logger.info(f"[{self.name}] Candle: {current_candle_time.strftime('%H:%M')} | Signal: {signal} | Delay: {candle_delay:.1f}s | Close: {df_1min['close'].iloc[-1]}")
+            self.logger.info(f"[{self.name}] Candle: {current_candle_time.strftime('%H:%M')} | Active Signals Count: {len(active_signals)} | Delay: {candle_delay:.1f}s | Close: {df_1min['close'].iloc[-1]}")
             
             self.last_processed_candle = current_candle_time
             
-            # Dynamic Exit Check
+            # Find active strategies
+            active_strategies = []
+            for i in range(1, 23):
+                if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
+                    active_strategies.append(f"Strategy_{i}")
+            if not active_strategies:
+                active_strategies = ["Strategy_3"]
+            
+            # A. Dynamic Exit Check per Strategy
             if getattr(self.config, "USE_DYNAMIC_EXITS", False):
                 last_row = df_1min.iloc[-1]
-                exit_long = bool(last_row.get('Exit_Long', False))
-                exit_short = bool(last_row.get('Exit_Short', False))
-                if exit_long or exit_short:
-                    self._handle_dynamic_exits(exit_long, exit_short, source=source)
+                for s_name in active_strategies:
+                    exit_long = bool(last_row.get(f'Exit_Long_{s_name}', False))
+                    exit_short = bool(last_row.get(f'Exit_Short_{s_name}', False))
+                    if exit_long or exit_short:
+                        self._handle_dynamic_exits(exit_long, exit_short, source=s_name)
             
-            if signal:
-                self.logger.info(f"!!! [{self.name}] SIGNAL: {signal.upper()} ({source}) !!!")
-                self._handle_signal(signal, atr_val, source)
+            # B. Process signals
+            for signal, atr_val, s_name in active_signals:
+                cooldown_time = self.strategy_cooldowns.get(s_name)
+                if cooldown_time and datetime.now(self.config.TIMEZONE) < cooldown_time:
+                    self.logger.info(f"[{self.name}] [SKIP] Signal {signal.upper()} for strategy {s_name} ignored. Strategy is on cooldown until {cooldown_time.strftime('%H:%M:%S')}.")
+                    continue
+                
+                self.logger.info(f"!!! [{self.name}] SIGNAL: {signal.upper()} ({s_name}) !!!")
+                self._handle_signal(signal, atr_val, s_name)
         
         # Cycle Performance Log
         duration = time.time() - cycle_start
@@ -519,10 +628,81 @@ class InstrumentBot(threading.Thread):
         else:
             self.logger.debug(f"[{self.name}] Cycle Time: {duration:.2f}s")
 
+    def _get_nearest_expiry(self, inst_config: dict) -> Optional[str]:
+        """
+        Return the nearest expiry date string (YYYY-MM-DD) for this instrument.
+
+        M1 FIX: Caches the expiry_list API response for 5 minutes so that both
+        trade_expiry_day_only and block_expiry_day_trades filters share a single
+        API call per candle cycle instead of firing independently.
+        """
+        cache_ttl_secs = 300  # 5 minutes
+        security_id = str(inst_config.get('security_id', ''))
+        cached = self._expiry_cache.get(security_id)
+        now = datetime.now(self.config.TIMEZONE)
+        if cached:
+            age = (now - cached['cached_at']).total_seconds()
+            if age < cache_ttl_secs:
+                return cached.get('nearest_expiry')
+
+        try:
+            underlying_id = int(security_id)
+            underlying_segment = inst_config.get('exchange_segment', 'IDX_I')
+            resp = self.data_api._make_request(
+                self.data_api.dhan.expiry_list,
+                under_security_id=underlying_id,
+                under_exchange_segment=underlying_segment
+            )
+            if resp and resp.get('data'):
+                raw_data = resp['data']
+                expiry_list = []
+                if isinstance(raw_data, list):
+                    expiry_list = raw_data
+                elif isinstance(raw_data, dict):
+                    for k, v in raw_data.items():
+                        if isinstance(v, list):
+                            expiry_list = v
+                            break
+                if expiry_list:
+                    expiry_list = [str(x) for x in expiry_list if isinstance(x, str)]
+                    expiry_list.sort()
+                    nearest = expiry_list[0]
+                    self._expiry_cache[security_id] = {
+                        'nearest_expiry': nearest,
+                        'cached_at': now
+                    }
+                    return nearest
+        except Exception as e:
+            self.logger.error(f"[{self.name}] _get_nearest_expiry failed: {e}")
+        return None
+
     def _handle_signal(self, signal, atr_val, source):
         """Handle entry signal with early limit validation"""
-        # Check instrument-level allowed actions (trade direction lock)
-        inst_config = self.config.INSTRUMENTS.get(self.name, {})
+        # H2 FIX: Acquire per-strategy lock so that if two strategies fire simultaneously
+        # within the same cycle, the second one waits until the first has completed its
+        # position-count check AND order placement, preventing double-entry.
+        if source not in self.strategy_entry_locks:
+            self.strategy_entry_locks[source] = threading.Lock()
+        if not self.strategy_entry_locks[source].acquire(blocking=False):
+            self.logger.warning(f"[{self.name}] [SKIP] Signal for '{source}' dropped — entry already in progress for this strategy.")
+            return
+        try:
+            self._handle_signal_inner(signal, atr_val, source)
+        finally:
+            self.strategy_entry_locks[source].release()
+
+    def _handle_signal_inner(self, signal, atr_val, source):
+        """Inner signal handler — called exclusively while strategy_entry_locks[source] is held."""
+        # Fetch the strategy-specific isolated config override
+        inst_config = self.get_strategy_instrument_config(source)
+        
+        # Check order latency lock to prevent duplicate entry orders during API/broker delay
+        last_order_time = self.order_latency_locks.get(source)
+        if last_order_time:
+            elapsed = (datetime.now(self.config.TIMEZONE) - last_order_time).total_seconds()
+            if elapsed < 10.0:  # 10 seconds latency lock
+                self.logger.warning(f"[{self.name}] [SKIP] Signal for strategy '{source}' ignored. Order latency lock active (placed {elapsed:.1f}s ago).")
+                return
         allowed_actions = inst_config.get("allowed_actions")
         if allowed_actions is not None:
             signal_action = signal.upper()
@@ -533,31 +713,13 @@ class InstrumentBot(threading.Thread):
         # Check Expiry Day only filter
         if inst_config.get("trade_expiry_day_only", 0) == 1:
             try:
-                underlying_id = int(inst_config['security_id'])
-                underlying_segment = inst_config.get('exchange_segment', 'IDX_I')
-                resp = self.data_api._make_request(
-                    self.data_api.dhan.expiry_list,
-                    under_security_id=underlying_id,
-                    under_exchange_segment=underlying_segment
-                )
-                if resp and resp.get('data'):
-                    raw_data = resp['data']
-                    expiry_list = []
-                    if isinstance(raw_data, list):
-                        expiry_list = raw_data
-                    elif isinstance(raw_data, dict):
-                        for k, v in raw_data.items():
-                            if isinstance(v, list):
-                                expiry_list = v
-                                break
-                    if expiry_list:
-                        expiry_list = [str(x) for x in expiry_list if isinstance(x, str)]
-                        expiry_list.sort()
-                        nearest_expiry = expiry_list[0]
-                        trading_date_str = datetime.now(self.config.TIMEZONE).strftime('%Y-%m-%d')
-                        if nearest_expiry != trading_date_str:
-                            self.logger.info(f"[{self.name}] [SKIP] Signal ignored. trade_expiry_day_only is active and today ({trading_date_str}) is not the expiry day ({nearest_expiry}).")
-                            return
+                # M1 FIX: use cached expiry list (5-min TTL) instead of live API call per signal
+                nearest_expiry = self._get_nearest_expiry(inst_config)
+                if nearest_expiry:
+                    trading_date_str = datetime.now(self.config.TIMEZONE).strftime('%Y-%m-%d')
+                    if nearest_expiry != trading_date_str:
+                        self.logger.info(f"[{self.name}] [SKIP] Signal ignored. trade_expiry_day_only is active and today ({trading_date_str}) is not the expiry day ({nearest_expiry}).")
+                        return
             except Exception as e:
                 self.logger.error(f"[{self.name}] Error checking expiry day only filter: {e}")
 
@@ -569,31 +731,14 @@ class InstrumentBot(threading.Thread):
             
             if is_buying_trade:
                 try:
-                    underlying_id = int(inst_config['security_id'])
-                    underlying_segment = inst_config.get('exchange_segment', 'IDX_I')
-                    resp = self.data_api._make_request(
-                        self.data_api.dhan.expiry_list,
-                        under_security_id=underlying_id,
-                        under_exchange_segment=underlying_segment
-                    )
-                    if resp and resp.get('data'):
-                        raw_data = resp['data']
-                        expiry_list = []
-                        if isinstance(raw_data, list):
-                            expiry_list = raw_data
-                        elif isinstance(raw_data, dict):
-                            for k, v in raw_data.items():
-                                if isinstance(v, list):
-                                    expiry_list = v
-                                    break
-                        if expiry_list:
-                            expiry_list = [str(x) for x in expiry_list if isinstance(x, str)]
-                            expiry_list.sort()
-                            nearest_expiry = expiry_list[0]
-                            trading_date_str = datetime.now(self.config.TIMEZONE).strftime('%Y-%m-%d')
-                            if nearest_expiry == trading_date_str:
-                                self.logger.warning(f"[{self.name}] [SKIP] Signal ignored. Expiry day trading is blocked for option BUYING trades today ({trading_date_str}).")
-                                return
+                    # M1 FIX: reuse cached expiry list — avoids duplicate API call when both
+                    # trade_expiry_day_only and block_expiry_day_trades are both enabled.
+                    nearest_expiry = self._get_nearest_expiry(inst_config)
+                    if nearest_expiry:
+                        trading_date_str = datetime.now(self.config.TIMEZONE).strftime('%Y-%m-%d')
+                        if nearest_expiry == trading_date_str:
+                            self.logger.warning(f"[{self.name}] [SKIP] Signal ignored. Expiry day trading is blocked for option BUYING trades today ({trading_date_str}).")
+                            return
                 except Exception as e:
                     self.logger.error(f"[{self.name}] Error checking expiry block: {e}")
 
@@ -617,7 +762,6 @@ class InstrumentBot(threading.Thread):
         self.logger.info(f"[{self.name}] Executing {signal} from {source}...")
         
         # Check Execution Mode
-        inst_config = self.config.INSTRUMENTS[self.name]
         execution_mode = inst_config.get('execution_mode', 'OPTION')
         
         if execution_mode == 'STOCK':
@@ -655,17 +799,16 @@ class InstrumentBot(threading.Thread):
                     
                 # Check limit overrides
                 overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-                acc_max_active = overrides.get('max_active', acc_config.get('max_active', self.MAX_ACTIVE))
-                acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', self.DAILY_LIMIT))
+                acc_max_active = overrides.get('max_active', acc_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))
+                acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', inst_config.get('daily_limit', self.DAILY_LIMIT)))
                 
-                if self.daily_trade_counts.get(acc_name, 0) >= acc_daily_limit:
-                    self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached.")
+                strat_counts = self.daily_trade_counts.setdefault(source, {})
+                if strat_counts.get(acc_name, 0) >= acc_daily_limit:
+                    self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached for {source}.")
                     continue
                     
-                # Check capacity of active positions for the underlying stock
                 try:
-                    pos_list = acc_api.get_positions()
-                    active_trades = sum(1 for pos in pos_list if safe_int(pos.get('netQty', 0)) != 0 and str(pos.get('securityId', '')) == underlying_id)
+                    active_trades = self._count_my_active_positions(None, "STOCK", strategy_name=source, account_name=acc_name)
                     if active_trades >= acc_max_active:
                         self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' has reached Max Active stock positions ({active_trades}/{acc_max_active}).")
                         continue
@@ -689,28 +832,41 @@ class InstrumentBot(threading.Thread):
             
             # 4. Update trade counts and cooldowns
             for acc in traded_accounts:
-                self.daily_trade_counts[acc] = self.daily_trade_counts.get(acc, 0) + 1
+                strat_counts = self.daily_trade_counts.setdefault(source, {})
+                strat_counts[acc] = strat_counts.get(acc, 0) + 1
                 
             if traded_accounts:
                 self.logger.info(f"[{self.name}] Stock Trade Counts Updated: {self.daily_trade_counts}")
-                self.cooldown_until = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
-                self.logger.info(f"[{self.name}] Cooldown activated. Locked until {self.cooldown_until.strftime('%H:%M:%S')}")
+                self.strategy_cooldowns[source] = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
+                self.order_latency_locks[source] = datetime.now(self.config.TIMEZONE)
+                self.logger.info(f"[{self.name}] Strategy cooldown activated for {source}. Locked until {self.strategy_cooldowns[source].strftime('%H:%M:%S')}")
             return
 
-        # Check Strategy 20 (Math Calendar Spread)
-        if inst_config.get("strategy_type") == "CALENDAR_SPREAD" or getattr(self.config, "ENABLE_STRATEGY_20", False):
+        # Declarative Option Execution Routing based on instruments.json configuration
+        strat_mode = str(inst_config.get('option_strategy_mode', 'DIRECT')).upper()
+        strat_type = str(inst_config.get('strategy_type', '')).upper()
+        leg_mode = str(inst_config.get('LEG_MODE', self.config.LEG_MODE)).upper()
+
+        if strat_type == "CALENDAR_SPREAD" or strat_mode in ("CALENDAR_SPREAD", "10"):
             self._execute_calendar_spread_strategy(signal, atr_val, source)
             return
 
-        # Check Option Strategy Mode
-        strat_mode = inst_config.get('option_strategy_mode', 'DIRECT')
-        if strat_mode != 'DIRECT':
+        if leg_mode == "SELL" or strat_mode in ("2", "OPTION_WRITING", "DIRECT_SELL"):
+            spot_price = float(self.df_spot['close'].iloc[-1])
+            self._execute_option_selling(signal, spot_price, source)
+            return
+
+        if strat_mode not in ('DIRECT', '1', 'NONE'):
             self._execute_multi_leg_strategy(strat_mode, signal, atr_val, source)
             return
         
         # Existing Options Logic
         ce_items, pe_items = choose_option_instruments(self.data_api, signal, self.config.INSTRUMENTS[self.name], self.logger)
         
+        if not ce_items or not pe_items:
+            self.logger.warning(f"[{self.name}] [SKIP] Strategy '{source}' skipped: Option instruments could not be resolved (CE count: {len(ce_items)}, PE count: {len(pe_items)}). Stale or missing security master cache?")
+            return
+            
         ce_action, pe_action = get_trade_actions(signal, self.config, self.logger)
         
         # Gate Keeper Validation Check
@@ -769,30 +925,17 @@ class InstrumentBot(threading.Thread):
                      continue
                      
                  overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-                 acc_max_active = overrides.get('max_active', acc_config.get('max_active', self.MAX_ACTIVE))
-                 acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', self.DAILY_LIMIT))
+                 acc_max_active = overrides.get('max_active', acc_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))
+                 acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', inst_config.get('daily_limit', self.DAILY_LIMIT)))
                  
-                 if self.daily_trade_counts.get(acc_name, 0) >= acc_daily_limit:
-                     self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached.")
+                 strat_counts = self.daily_trade_counts.setdefault(source, {})
+                 if strat_counts.get(acc_name, 0) >= acc_daily_limit:
+                     self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached for {source}.")
                      continue
                      
                  try:
-                     pos_list = acc_api.get_positions()
-                     
-                     ce_count = 0
-                     pe_count = 0
-                     prefix = inst_config['fno_prefix']
-                     for pos in pos_list:
-                         qty = safe_int(pos.get('netQty', 0))
-                         if qty != 0:
-                             sym = pos.get('tradingSymbol', '').upper()
-                             if sym.startswith(prefix.upper()):
-                                 if sym.endswith('CE'):
-                                     ce_count += 1
-                                 elif sym.endswith('PE'):
-                                     pe_count += 1
-                                 else:
-                                     ce_count += 1
+                     ce_count = self._count_my_active_positions(None, "CE", strategy_name=source, account_name=acc_name)
+                     pe_count = self._count_my_active_positions(None, "PE", strategy_name=source, account_name=acc_name)
                      
                      # Check capacity independently for CE and PE option legs
                      is_eligible = True
@@ -843,16 +986,17 @@ class InstrumentBot(threading.Thread):
                          bypass_max_active_check=True, accounts=pe_accounts
                      )
                      if accs: traded_accounts.update(accs)
-
              
              # Increment daily trade counts for successfully traded accounts
              for acc in traded_accounts:
-                 self.daily_trade_counts[acc] = self.daily_trade_counts.get(acc, 0) + 1
+                 strat_counts = self.daily_trade_counts.setdefault(source, {})
+                 strat_counts[acc] = strat_counts.get(acc, 0) + 1
                  
              if traded_accounts:
                  self.logger.info(f"[{self.name}] Trade Counts Updated: {self.daily_trade_counts}")
-                 self.cooldown_until = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
-                 self.logger.info(f"[{self.name}] Cooldown activated. Locked until {self.cooldown_until.strftime('%H:%M:%S')}")
+                 self.strategy_cooldowns[source] = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
+                 self.order_latency_locks[source] = datetime.now(self.config.TIMEZONE)
+                 self.logger.info(f"[{self.name}] Strategy cooldown activated for {source}. Locked until {self.strategy_cooldowns[source].strftime('%H:%M:%S')}")
 
     def _handle_dynamic_exits(self, exit_long: bool, exit_short: bool, source: str = "Strategy_3"):
         self.logger.info(f"[{self.name}] Checking dynamic exits: Exit_Long={exit_long}, Exit_Short={exit_short} | Source: {source}")
@@ -1001,7 +1145,7 @@ class InstrumentBot(threading.Thread):
 
     def _execute_calendar_spread_strategy(self, signal: str, atr_val: float, source: str):
         """Execute Strategy 20 (3:1:1 Calendar Spread) sequentially across active accounts (BUY Long Legs first)."""
-        inst_config = self.config.INSTRUMENTS[self.name]
+        inst_config = self.get_strategy_instrument_config(source)
         spot_close = float(self.df_spot['close'].iloc[-1]) if self.df_spot is not None and not self.df_spot.empty else 0.0
         regime_stance = getattr(self.df_spot, 'regime', ['PUT_CALENDAR'])[-1] if hasattr(self.df_spot, 'regime') else ("PUT_CALENDAR" if signal.upper() == "SELL" else "CALL_CALENDAR")
         
@@ -1100,42 +1244,157 @@ class InstrumentBot(threading.Thread):
                 margin_resp = self.data_api.calculate_multi_order_margin(scrip_list)
             except Exception as e:
                 self.logger.warning(f"[{self.name}] Pre-trade margin calculation failed for '{acc_name}': {e}")
-                
+                    # Get account multiplier (default: 1.0)
+            multiplier = float(acc_config.get('global_multiplier', 1.0))
+            
             # Staged Order Execution for this account: BUY legs first, then SELL legs
             buy_legs = [l for l in legs_to_execute if l["action"] == "BUY"]
             sell_legs = [l for l in legs_to_execute if l["action"] == "SELL"]
             
             # 1. Place BUY legs (if any are not already held)
+            buy_success = True
             for leg in buy_legs:
+                allowed_actions = acc_config.get('allowed_actions')
+                if allowed_actions is not None and "BUY" not in allowed_actions:
+                    self.logger.warning(f"[{self.name}] [SKIP] Stage 1 Long Leg for '{acc_name}' restricted. BUY not in allowed_actions.")
+                    continue
+                
+                allowed_option_types = acc_config.get('allowed_option_types')
+                leg_opt_type = "CE" if leg["option_type"] == 'C' else "PE"
+                if allowed_option_types is not None and leg_opt_type not in allowed_option_types:
+                    self.logger.warning(f"[{self.name}] [SKIP] Stage 1 Long Leg for '{acc_name}' restricted. Option type {leg_opt_type} not in allowed_option_types.")
+                    continue
+                
+                order_qty = int(leg["quantity"] * multiplier)
+                self._enforce_order_stagger()
                 resp = acc_api.place_order(
                     security_id=leg["security_id"],
                     transaction_type="BUY",
-                    quantity=leg["quantity"],
+                    quantity=order_qty,
                     exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
                     product_type="MARGIN",
                     order_type="MARKET",
                     price=leg["ltp"]
                 )
-                self.logger.info(f"[{self.name}] Stage 1 Long Leg Order Executed ({acc_name}): {leg['tag']} -> {resp}")
+                self.logger.info(f"[{self.name}] Stage 1 Long Leg Order Executed ({acc_name}): {leg['tag']} (Qty: {order_qty}) -> {resp}")
                 
-            # Wait 500ms for margin benefit to apply if we placed a new BUY leg
-            if buy_legs and sell_legs:
-                time.sleep(0.5)
+                # Check status and extract orderId
+                order_id = None
+                order_status_val = None
+                if resp and resp.get('status') == 'success':
+                    data = resp.get('data', {})
+                    if isinstance(data, dict):
+                        order_id = data.get('orderId')
+                        order_status_val = data.get('orderStatus')
+                
+                if order_status_val == 'REJECTED':
+                    self.logger.error(f"[{self.name}] Stage 1 BUY order was REJECTED immediately by broker. Aborting spread placement.")
+                    buy_success = False
+                    continue
+
+                if order_id:
+                    self.logger.info(f"[{self.name}] Polling status for BUY order {order_id} to ensure execution before selling...")
+                    is_filled = False
+                    status = 'TRANSIT'
+                    for attempt in range(12):  # Poll for up to 6 seconds
+                        time.sleep(0.5)
+                        status = acc_api.get_order_status(order_id)
+                        self.logger.debug(f"[{self.name}] BUY order {order_id} status check {attempt+1}: {status}")
+                        if status == 'TRADED':
+                            is_filled = True
+                            self.logger.info(f"[{self.name}] BUY order {order_id} is FILLED (TRADED). Proceeding to Stage 2.")
+                            break
+                        elif status in ['REJECTED', 'CANCELLED']:
+                            self.logger.error(f"[{self.name}] BUY order {order_id} was {status}! Aborting SELL leg placement.")
+                            break
+                    
+                    if not is_filled:
+                        self.logger.error(f"[{self.name}] BUY order {order_id} failed to fill in time (status: {status}). Aborting SELL leg placement.")
+                        buy_success = False
+                        continue
+                else:
+                    self.logger.error(f"[{self.name}] Failed to retrieve orderId for BUY order. Aborting SELL leg placement.")
+                    buy_success = False
+                    continue
+
+                sym = f"{prefix}-{leg['expiry']}-{leg['strike']}-{leg_opt_type}"
+                with self.state.lock:
+                    self.state.positions[str(leg["security_id"])] = {
+                        'security_id': str(leg["security_id"]),
+                        'symbol': sym,
+                        'instrument': self.name,
+                        'account': acc_name,
+                        'strategy': "Strategy_20",
+                        'leg': leg_opt_type,
+                        'action': "BUY",
+                        'qty': order_qty,
+                        'product_type': "MARGIN",
+                        'exchange_segment': inst_config.get("option_segment", "NSE_FNO"),
+                        'exit_mode': "SWING",
+                        'created_at': datetime.now(self.config.TIMEZONE).isoformat()
+                    }
+                self.state.save_state()
+                
+            # Wait brief extra moment for margin benefit to settle in broker risk systems
+            if buy_legs and sell_legs and buy_success:
+                time.sleep(0.2)
                 
             # 2. Place SELL legs (weekly short legs)
-            for leg in sell_legs:
-                resp = acc_api.place_order(
-                    security_id=leg["security_id"],
-                    transaction_type="SELL",
-                    quantity=leg["quantity"],
-                    exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
-                    product_type="MARGIN",
-                    order_type="MARKET",
-                    price=leg["ltp"]
-                )
-                self.logger.info(f"[{self.name}] Stage 2 Short Leg Order Executed ({acc_name}): {leg['tag']} -> {resp}")
-                
-        self.cooldown_until = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
+            if buy_success:
+                for leg in sell_legs:
+                    allowed_actions = acc_config.get('allowed_actions')
+                    if allowed_actions is not None and "SELL" not in allowed_actions:
+                        self.logger.warning(f"[{self.name}] [SKIP] Stage 2 Short Leg for '{acc_name}' restricted. SELL not in allowed_actions.")
+                        continue
+
+                    # BUG-C1 FIX: allowed_option_types check and all per-leg processing
+                    # must be indented inside the for-loop (was at account level before).
+                    allowed_option_types = acc_config.get('allowed_option_types')
+                    leg_opt_type = "CE" if leg["option_type"] == 'C' else "PE"
+                    if allowed_option_types is not None and leg_opt_type not in allowed_option_types:
+                        self.logger.warning(f"[{self.name}] [SKIP] Stage 2 Short Leg for '{acc_name}' restricted. Option type {leg_opt_type} not in allowed_option_types.")
+                        continue
+
+                    order_qty = int(leg["quantity"] * multiplier)
+                    self._enforce_order_stagger()
+                    resp = acc_api.place_order(
+                        security_id=leg["security_id"],
+                        transaction_type="SELL",
+                        quantity=order_qty,
+                        exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
+                        product_type="MARGIN",
+                        order_type="MARKET",
+                        price=leg["ltp"]
+                    )
+                    # Check status and extract orderStatus
+                    order_status_val = None
+                    if resp and resp.get('status') == 'success':
+                        data = resp.get('data', {})
+                        if isinstance(data, dict):
+                            order_status_val = data.get('orderStatus')
+
+                    if resp and order_status_val != 'REJECTED':
+                        sym = f"{prefix}-{leg['expiry']}-{leg['strike']}-{leg_opt_type}"
+                        with self.state.lock:
+                            self.state.positions[str(leg["security_id"])] = {
+                                'security_id': str(leg["security_id"]),
+                                'symbol': sym,
+                                'instrument': self.name,
+                                'account': acc_name,
+                                'strategy': "Strategy_20",
+                                'leg': leg_opt_type,
+                                'action': "SELL",
+                                'qty': order_qty,
+                                'product_type': "MARGIN",
+                                'exchange_segment': inst_config.get("option_segment", "NSE_FNO"),
+                                'exit_mode': "SWING",
+                                'created_at': datetime.now(self.config.TIMEZONE).isoformat()
+                            }
+                        self.state.save_state()
+                    else:
+                        self.logger.error(f"[{self.name}] Stage 2 SELL order REJECTED or failed for leg {leg.get('strike')} {leg_opt_type} on '{acc_name}'. Resp: {resp}")
+                    
+        self.strategy_cooldowns["Strategy_20"] = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
 
     def _execute_multi_leg_strategy(self, strategy_mode: str, signal: str, atr_val: float, source: str):
         """Execute a multi-leg option strategy in a margin-safe sequential manner (BUY legs first)."""
@@ -1290,45 +1549,74 @@ class InstrumentBot(threading.Thread):
             
         if traded_accounts:
             self.logger.info(f"[{self.name}] Trade Counts Updated: {self.daily_trade_counts}")
-            self.cooldown_until = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
-            self.logger.info(f"[{self.name}] Cooldown activated. Locked until {self.cooldown_until.strftime('%H:%M:%S')}")
+            self.strategy_cooldowns[source] = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
+            self.logger.info(f"[{self.name}] Strategy cooldown activated for {source}. Locked until {self.strategy_cooldowns[source].strftime('%H:%M:%S')}")
 
-    def _count_my_active_positions(self, positions, leg_type=None):
+    def _count_my_active_positions(self, positions, leg_type=None, strategy_name: Optional[str] = None, account_name: Optional[str] = None):
         inst_config = self.config.INSTRUMENTS[self.name]
         execution_mode = inst_config.get('execution_mode', 'OPTION')
         
+        if strategy_name:
+            # Query local state positions filtered by strategy
+            ce_count = 0
+            pe_count = 0
+            stock_count = 0
+            with self.state.lock:
+                for p in self.state.positions.values():
+                    if p.get('instrument') == self.name and p.get('strategy') == strategy_name:
+                        if account_name and p.get('account') != account_name:
+                            continue
+                        p_leg = p.get('leg')
+                        if p_leg == 'CE':
+                            ce_count += 1
+                        elif p_leg == 'PE':
+                            pe_count += 1
+                        elif p_leg == 'STOCK':
+                            stock_count += 1
+            if leg_type == "CE":
+                return ce_count
+            elif leg_type == "PE":
+                return pe_count
+            elif leg_type == "STOCK":
+                return stock_count
+            else:
+                return max(ce_count, pe_count, stock_count)
+                
         if execution_mode == 'STOCK':
             underlying_id = str(inst_config['security_id'])
             stock_count = 0
-            for pos in positions:
-                qty = safe_int(pos.get('netQty', 0))
-                if qty != 0:
-                    pos_sec_id = str(pos.get('securityId', ''))
-                    if pos_sec_id == underlying_id:
-                        stock_count += 1
+            if positions:
+                for pos in positions:
+                    qty = safe_int(pos.get('netQty', 0))
+                    if qty != 0:
+                        pos_sec_id = str(pos.get('securityId', ''))
+                        if pos_sec_id == underlying_id:
+                            stock_count += 1
             return stock_count
 
         ce_count = 0
         pe_count = 0
         prefix = inst_config['fno_prefix']
-        for pos in positions:
-             qty = safe_int(pos.get('netQty', 0))
-             if qty != 0:
-                 sym = pos.get('tradingSymbol', '').upper()
-                 if sym.startswith(prefix.upper()):
-                     if sym.endswith('CE'):
-                         ce_count += 1
-                     elif sym.endswith('PE'):
-                         pe_count += 1
-                     else:
-                         ce_count += 1
-                         
+        if positions:
+            for pos in positions:
+                 qty = safe_int(pos.get('netQty', 0))
+                 if qty != 0:
+                     sym = pos.get('tradingSymbol', '').upper()
+                     if sym.startswith(prefix.upper()):
+                         if sym.endswith('CE'):
+                             ce_count += 1
+                         elif sym.endswith('PE'):
+                             pe_count += 1
+                         else:
+                             ce_count += 1
+                             
         if leg_type == "CE":
             return ce_count
         elif leg_type == "PE":
             return pe_count
         else:
             return max(ce_count, pe_count)
+
 
     def _place_batch(self, items, action, leg_type, atr_val, signal, source, bypass_max_active_check: bool = False, accounts: Optional[List[Dict]] = None):
         success_accounts = set()
@@ -1672,9 +1960,9 @@ class InstrumentBot(threading.Thread):
                 if not bypass_max_active_check:
                     try:
                         pos_list = self.order_manager.position_manager.get_cached_positions(acc_name)
-                        active_qty = self._count_my_active_positions(pos_list, leg_type)
+                        active_qty = self._count_my_active_positions(pos_list, leg_type, strategy_name=source, account_name=acc_name)
                         if active_qty >= acc_max_active:
-                            self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Max Active Reached.")
+                            self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Max Active Reached for strategy '{source}'.")
                             continue
                     except Exception as e:
                         self.logger.error(f"[{self.name}] Failed to check positions for '{acc_name}': {e}")
@@ -1727,20 +2015,25 @@ class InstrumentBot(threading.Thread):
                 for dispatch in eligible_dispatches:
                     acc_name = dispatch['acc_name']
                     self.logger.info(f"[{self.name}] [EXEC] Placing {action} concurrently for '{acc_name}' (x{dispatch['acc_qty']}) | Type: LIMIT | Limit: {dispatch['limit_price']} (LTP: {ltp})")
-                    futures[acc_name] = self.order_manager.executor.submit(
-                        dispatch['acc_api'].place_entry_order,
-                        security_id=sec_id,
-                        transaction_type=action,
-                        quantity=dispatch['acc_qty'],
-                        order_type="LIMIT",
-                        price=dispatch['limit_price'],
-                        target_points=dispatch['api_opt_tp'],
-                        sl_points=dispatch['api_opt_sl'],
-                        trailing_jump=dispatch['api_opt_trail'],
-                        exchange_segment=opt_seg,
-                        product_type=dispatch['inst_product_type'],
-                        ref_price=ltp
-                    )
+                    
+                    # Wrap the SDK call in a stagger lambda so it blocks globally in worker thread
+                    def make_call(d=dispatch):
+                        self._enforce_order_stagger()
+                        return d['acc_api'].place_entry_order(
+                            security_id=sec_id,
+                            transaction_type=action,
+                            quantity=d['acc_qty'],
+                            order_type="LIMIT",
+                            price=d['limit_price'],
+                            target_points=d['api_opt_tp'],
+                            sl_points=d['api_opt_sl'],
+                            trailing_jump=d['api_opt_trail'],
+                            exchange_segment=opt_seg,
+                            product_type=d['inst_product_type'],
+                            ref_price=ltp
+                        )
+                        
+                    futures[acc_name] = self.order_manager.executor.submit(make_call)
 
                 # 3. Gather Results and Update State
                 for dispatch in eligible_dispatches:
@@ -1944,6 +2237,55 @@ class InstrumentBot(threading.Thread):
                                         with self.state.lock:
                                             self.state.positions.pop(sec_id, None)
                                         self.state.save_state()
+                                continue
+                                
+                            # EOD Auto Square-off check if carry_forward is False for this strategy
+                            now_time = datetime.now(self.config.TIMEZONE).time()
+                            strat_name = position.get('strategy', 'Strategy_3')
+                            if now_time >= self.config.SQ_OFF_TIME and not self.should_carry_forward(strat_name):
+                                sym = open_broker_positions[sec_id].get('tradingSymbol', sec_id)
+                                net_qty = safe_int(open_broker_positions[sec_id].get('netQty', 0))
+                                abs_qty = abs(net_qty)
+                                self.logger.warning(f"[{self.name}] [EOD SQUAREOFF] Closing position {sym} (x{abs_qty}) on {acc_name}: strategy {strat_name} carry_forward is False.")
+                                
+                                # Cancel pending orders for this contract
+                                try:
+                                    pending = acc_api.get_pending_orders()
+                                    pos_pending = [o for o in pending if str(o.get('securityId')) == sec_id]
+                                    for o in pos_pending:
+                                        acc_api.cancel_order(o.get('orderId'))
+                                except Exception as e:
+                                    self.logger.error(f"[{self.name}] Error cancelling pending orders on exit: {e}")
+                                    
+                                # Place EOD Cover Order
+                                close_action = 'SELL' if net_qty > 0 else 'BUY'
+                                exch = open_broker_positions[sec_id].get('exchangeSegment', 'NSE_FNO')
+                                product = open_broker_positions[sec_id].get('productType', 'MARGIN')
+                                
+                                resp = acc_api.place_order(
+                                    security_id=sec_id,
+                                    transaction_type=close_action,
+                                    quantity=abs_qty,
+                                    exchange_segment=exch,
+                                    product_type=product,
+                                    order_type="MARKET",
+                                    price=0.0,
+                                    should_slice=(exch in ['NSE_FNO', 'BSE_FNO'])
+                                )
+                                if resp:
+                                    self.logger.warning(f"[{self.name}] [EOD SQUAREOFF] Position closed successfully: {resp}")
+                                    with self.state.lock:
+                                        self.state.positions.pop(sec_id, None)
+                                    self.state.save_state()
+                                    
+                                    if self.alert_manager:
+                                        msg = (
+                                            f"🚨 *EOD Position Closed:* `{sym}`\n"
+                                            f"📊 *Strategy:* `{strat_name}`\n"
+                                            f"📊 *Reason:* carry_forward is False\n"
+                                            f"👤 *Account:* {acc_name}"
+                                        )
+                                        self.alert_manager.send_alert(msg, header="Trade Closed")
                                 continue
                                 
                             # If it is open, check the exit mode logic
@@ -2160,108 +2502,283 @@ class InstrumentBot(threading.Thread):
                     except Exception as acc_err:
                         self.logger.error(f"[{self.name}] Error checking positions for {acc_name} in loop: {acc_err}")
                         
-                # Check Strategy 20 Intraday Exits (> Rs. 5000)
+                # Check Strategy 20 Intraday Exits (35% SL / Target / EOD)
                 try:
-                    self._monitor_calendar_spread_exits()
+                    self._monitor_strategy20_exits()
                 except Exception as e:
-                    self.logger.error(f"[{self.name}] Error in calendar spread monitor: {e}")
+                    self.logger.error(f"[{self.name}] Error in Strategy 20 exit monitor: {e}")
                         
             except Exception as loop_err:
                 self.logger.error(f"[{self.name}] Error in local stop monitor loop: {loop_err}")
                 
             time.sleep(5)
 
-    def _monitor_calendar_spread_exits(self):
-        """Monitor active calendar spreads (Strategy 20) for intraday profit target > Rs. 5000."""
+    def _execute_option_selling(self, signal: str, spot_price: float, source: str):
+        """Execute Option Writer live order placement on Dhan API."""
+        if source in self.strategy_cooldowns:
+            if datetime.now(self.config.TIMEZONE) < self.strategy_cooldowns[source]:
+                self.logger.debug(f"[{self.name}] [SKIP] {source} is on cooldown until {self.strategy_cooldowns[source].strftime('%H:%M:%S')}")
+                return
+
+        strat_config = self.get_strategy_instrument_config(source)
+        otm_offset = int(strat_config.get("otm_offset", 0))
+        leg_sl_pct = float(strat_config.get("leg_sl_pct", 0.35))
+        num_lots = int(strat_config.get("num_lots", 3))
+        
         inst_config = self.config.INSTRUMENTS[self.name]
-        prefix = inst_config.get('fno_prefix', self.name).upper()
+        strike_step = int(inst_config.get("strike_step", 50))
+        lot_size = int(inst_config.get("lot_size", 65))
+        prefix = inst_config.get("fno_prefix", self.name).upper()
+        
+        atm_strike = int(round(spot_price / strike_step) * strike_step)
+        
+        sig_str = str(signal).upper()
+        if sig_str in ("CALL", "BUY", "1", "+1"):  # Bullish trend -> Sell PE
+            action_type = "PE"
+            strike = atm_strike - otm_offset
+        elif sig_str in ("PUT", "SELL", "-1"): # Bearish trend -> Sell CE
+            action_type = "CE"
+            strike = atm_strike + otm_offset
+        else:
+            return
+
+        nearest_expiry = self._get_nearest_expiry(inst_config)
+
+        try:
+            sec_id = self.data_api.resolve_option_security_id(
+                prefix=prefix,
+                strike=strike,
+                option_type=action_type,
+                expiry_date=nearest_expiry,
+                expiry_index=0
+            )
+        except Exception as e:
+            self.logger.error(f"[{self.name}] [{source}] Failed to resolve option contract security ID: {e}")
+            return
+
+        if not sec_id:
+            self.logger.error(f"[{self.name}] [{source}] Security ID for {strike} {action_type} not found.")
+            return
+
+        accounts = self.order_manager.get_accounts()
+        for acc in accounts:
+            acc_name = acc['name']
+            acc_api = acc['api']
+            acc_config = acc.get('config', {})
+            
+            allowed_strategies = acc_config.get('allowed_strategies')
+            if allowed_strategies is not None and source not in allowed_strategies:
+                continue
+                
+            # Check Max Active Limit for this account
+            active_count = self._count_my_active_positions(None, strategy_name=source, account_name=acc_name)
+            overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
+            acc_max_active = overrides.get('max_active', acc_config.get('max_active', strat_config.get('max_active', self.MAX_ACTIVE)))
+            if active_count >= acc_max_active:
+                self.logger.warning(f"[{self.name}] [{source}] [SKIP] Account '{acc_name}' has reached Max Active {source} trades ({active_count}/{acc_max_active}).")
+                continue
+                
+            # Check Daily Limit for this account
+            strat_counts = self.daily_trade_counts.setdefault(source, {})
+            acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit', self.DAILY_LIMIT)))
+            if strat_counts.get(acc_name, 0) >= acc_daily_limit:
+                self.logger.warning(f"[{self.name}] [{source}] [SKIP] Account '{acc_name}' has reached Daily Limit for {source} ({strat_counts.get(acc_name, 0)}/{acc_daily_limit}).")
+                continue
+                
+            order_qty = num_lots * lot_size
+            
+            self.logger.info(f"[{self.name}] [{source}] Placing LIVE SELL Market Order for '{acc_name}': {order_qty} qty of {prefix} {strike} {action_type} (sec_id: {sec_id})")
+            
+            resp = acc_api.place_order(
+                security_id=sec_id,
+                transaction_type="SELL",
+                quantity=order_qty,
+                exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
+                product_type="MARGIN",
+                order_type="MARKET",
+                price=0.0
+            )
+            
+            order_status_val = None
+            order_id = None
+            if resp and resp.get('status') == 'success':
+                data = resp.get('data', {})
+                if isinstance(data, dict):
+                    order_status_val = data.get('orderStatus')
+                    order_id = data.get('orderId')
+
+            if resp and order_status_val != 'REJECTED':
+                # BUG-C2 FIX: MARKET orders return price=0.0 at submission time.
+                # Poll order status to get the actual fill price before computing SL.
+                fill_px = 0.0
+                if order_id:
+                    self.logger.info(f"[{self.name}] [{source}] Polling fill price for order {order_id}...")
+                    for attempt in range(10):  # Poll up to 5 seconds
+                        time.sleep(0.5)
+                        try:
+                            status_resp = self.data_api._make_request(
+                                self.data_api.dhan.get_order_by_id, order_id=order_id
+                            )
+                            if status_resp:
+                                if isinstance(status_resp, dict) and status_resp.get('status') == 'success':
+                                    order_data = status_resp.get('data', {})
+                                    if isinstance(order_data, list) and order_data:
+                                        order_data = order_data[0]
+                                elif isinstance(status_resp, list) and len(status_resp) > 0:
+                                    order_data = status_resp[0] if isinstance(status_resp[0], dict) else {}
+                                else:
+                                    order_data = {}
+                                
+                                if order_data:
+                                    actual_status = str(order_data.get('orderStatus', '')).upper()
+                                    if actual_status == 'TRADED':
+                                        fill_px = float(order_data.get('averageTradedPrice', 0.0) or
+                                                        order_data.get('price', 0.0) or 0.0)
+                                        self.logger.info(f"[{self.name}] [{source}] Fill price confirmed: ₹{fill_px:.2f}")
+                                        break
+                                    elif actual_status in ['REJECTED', 'CANCELLED']:
+                                        self.logger.error(f"[{self.name}] [{source}] Order {order_id} was {actual_status}. Skipping state update.")
+                                        order_status_val = actual_status
+                                        break
+                        except Exception as poll_e:
+                            self.logger.warning(f"[{self.name}] [{source}] Fill price poll attempt {attempt+1} failed: {poll_e}")
+
+                if order_status_val in ['REJECTED', 'CANCELLED']:
+                    continue
+
+                # Fallback: if fill_px still 0, use LTP from OHLC as proxy
+                if fill_px <= 0:
+                    try:
+                        opt_seg = inst_config.get("option_segment", "NSE_FNO")
+                        ltp_resp = self.data_api._make_request(
+                            self.data_api.dhan.ohlc_data, securities={opt_seg: [int(sec_id)]}
+                        )
+                        if isinstance(ltp_resp, dict) and 'data' in ltp_resp:
+                            d = ltp_resp['data'].get(opt_seg, {}).get(str(sec_id), {})
+                            fill_px = float(d.get('last_price', 0.0))
+                    except Exception as e:
+                        self.logger.error(f"[{self.name}] [{source}] Error fetching LTP fallback for {sec_id}: {e}")
+                        
+                if fill_px <= 0:
+                    self.logger.error(f"[{self.name}] [{source}] CRITICAL: Could not confirm fill price. Abandoning state update to prevent 0.00 SL.")
+                    continue
+
+                sl_price = round(fill_px * (1.0 + leg_sl_pct), 2) if fill_px > 0 else 0.0
+                self.logger.info(f"[{self.name}] [{source}] Entry=₹{fill_px:.2f}, SL=₹{sl_price:.2f} ({leg_sl_pct*100:.0f}%)")
+                
+                with self.state.lock:
+                    self.state.positions[str(sec_id)] = {
+                        "strategy": source,
+                        "account": acc_name,
+                        "qty": order_qty,
+                        "entry_price": fill_px,
+                        "sl_price": sl_price,
+                        "timestamp": datetime.now(self.config.TIMEZONE).isoformat(),
+                        "symbol": f"{prefix} {strike} {action_type}",
+                        "exchange_segment": inst_config.get("option_segment", "NSE_FNO")
+                    }
+                self.state.save_state()
+                
+                if self.alert_manager:
+                    self.alert_manager.send_alert(
+                        f"🚨 *Live Option Short Executed:*\n"
+                        f"🔹 *Strategy:* `{source}`\n"
+                        f"🔹 *Account:* `{acc_name}`\n"
+                        f"🔹 *Instrument:* `{prefix} {strike} {action_type}`\n"
+                        f"🔹 *Quantity:* `{order_qty}` (SL: {sl_price:.2f})\n"
+                        f"🔹 *Entry Price:* `{fill_px:.2f}`",
+                        header="Live Order Executed"
+                    )
+                    
+                # Increment daily trade count for Strategy
+                strat_counts = self.daily_trade_counts.setdefault(source, {})
+                strat_counts[acc_name] = strat_counts.get(acc_name, 0) + 1
+
+        self.strategy_cooldowns[source] = datetime.now(self.config.TIMEZONE) + timedelta(seconds=280)
+
+    def _monitor_strategy20_exits(self):
+        """Monitor active Strategy 20 option writing positions for 35% SL, target profit, or EOD exit."""
+        strat_config = self.get_strategy_instrument_config("Strategy_20")
+        target_pnl_per_lot = float(strat_config.get("target_profit", 2000.0))
+        max_loss_pnl_per_lot = float(strat_config.get("stop_loss", -2500.0))
+        if max_loss_pnl_per_lot > 0: max_loss_pnl_per_lot = -max_loss_pnl_per_lot
+        
+        inst_config = self.config.INSTRUMENTS[self.name]
+        lot_size = int(inst_config.get("lot_size", 65))
         
         accounts = self.order_manager.get_accounts()
         for acc in accounts:
             acc_name = acc['name']
             acc_api = acc['api']
             
-            try:
-                positions = acc_api.get_positions()
-                if not positions:
-                    continue
+            with self.state.lock:
+                s20_positions = [
+                    pos for pos in self.state.positions.values()
+                    if pos.get('strategy') == "Strategy_20" and pos.get('account') == acc_name
+                ]
                 
-                stance_positions = {"CALL": [], "PUT": []}
-                for pos in positions:
-                    qty = safe_int(pos.get('netQty', 0))
-                    if qty == 0:
-                        continue
+            if not s20_positions:
+                continue
+                
+            for pos in s20_positions:
+                sec_id = pos['security_id']
+                qty = pos['qty']
+                entry_px = pos.get('entry_price', 0.0)
+                sl_price = pos.get('sl_price', 0.0)
+                
+                pos_lots = max(1, qty // lot_size)
+                effective_target_pnl = target_pnl_per_lot * pos_lots
+                effective_max_loss_pnl = max_loss_pnl_per_lot * pos_lots
+                
+                opt_segment = pos.get('exchange_segment', 'NSE_FNO')
+                ltp_resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={opt_segment: [int(sec_id)]})
+                ltp = 0.0
+                if ltp_resp and 'data' in ltp_resp:
+                    try:
+                        d = ltp_resp['data']
+                        if opt_segment in d: d = d[opt_segment]
+                        if str(sec_id) in d: d = d[str(sec_id)]
+                        ltp = float(d.get('last_price', 0) or d.get('ltp', 0))
+                    except Exception:
+                        pass
                         
-                    sym = pos.get('tradingSymbol', '').upper()
-                    if sym.startswith(prefix):
-                        if sym.endswith('CE'):
-                            stance_positions["CALL"].append(pos)
-                        elif sym.endswith('PE'):
-                            stance_positions["PUT"].append(pos)
-                            
-                for stance, legs in stance_positions.items():
-                    if not legs:
-                        continue
-                        
-                    combined_pnl = 0.0
-                    for leg in legs:
-                        qty = safe_int(leg.get('netQty', 0))
-                        ltp = float(leg.get('lastPrice', 0.0))
-                        avg_px = float(leg.get('averagePrice', 0.0))
-                        if qty != 0:
-                            combined_pnl += qty * (ltp - avg_px)
-                            
-                    trigger_exit = False
-                    reason = ""
-                    header_label = ""
-                    if combined_pnl >= 5000.0:
-                        trigger_exit = True
-                        reason = f"Profit Target Reached (Target: Rs. 5000)"
-                        header_label = "Strategy 20 Profit Target"
-                    elif combined_pnl <= -4000.0:
-                        trigger_exit = True
-                        reason = f"Stop Loss Triggered (Limit: -Rs. 4000)"
-                        header_label = "Strategy 20 Stop Loss"
-                        
-                    if trigger_exit:
-                        self.logger.warning(f"[{self.name}] [STRATEGY 20 EXIT] Combined PnL for {stance} Calendar on {acc_name} reached Rs. {combined_pnl:.2f}. Triggering exit via {reason}.")
-                        
-                        for leg in legs:
-                            sec_id = str(leg.get('securityId'))
-                            sym = leg.get('tradingSymbol')
-                            qty = safe_int(leg.get('netQty', 0))
-                            abs_qty = abs(qty)
-                            close_action = 'SELL' if qty > 0 else 'BUY'
-                            exch = leg.get('exchangeSegment', 'NSE_FNO')
-                            product = leg.get('productType', 'MARGIN')
-                            
-                            try:
-                                resp = acc_api.place_order(
-                                    security_id=sec_id,
-                                    transaction_type=close_action,
-                                    quantity=abs_qty,
-                                    exchange_segment=exch,
-                                    product_type=product,
-                                    order_type='MARKET',
-                                    price=0.0,
-                                    should_slice=(exch in ['NSE_FNO', 'BSE_FNO'])
-                                )
-                                self.logger.info(f"[{self.name}] [STRATEGY 20 EXIT] Placed exit order for {sym}: {close_action} {abs_qty} -> {resp}")
-                            except Exception as e:
-                                self.logger.error(f"[{self.name}] [STRATEGY 20 EXIT] Failed to close {sym} for {acc_name}: {e}")
-                                
-                        if self.alert_manager:
-                            self.alert_manager.send_alert(
-                                f"🎯 *{header_label}*\n"
-                                f"*Instrument:* `{self.name}`\n"
-                                f"*Stance:* `{stance} Calendar`\n"
-                                f"*Account:* `{acc_name}`\n"
-                                f"*Combined PnL:* `Rs. {combined_pnl:,.2f}`\n"
-                                f"*Action:* Exited all legs at market due to {reason}.",
-                                header=header_label
-                            )
-            except Exception as e:
-                self.logger.error(f"[{self.name}] Error in calendar spread monitor for '{acc_name}': {e}")
+                if ltp <= 0:
+                    continue
+                    
+                running_pnl = (entry_px - ltp) * qty
+                now_time = datetime.now(self.config.TIMEZONE).time()
+                
+                trigger_exit = False
+                reason = ""
+                
+                if sl_price > 0 and ltp >= sl_price:
+                    trigger_exit = True
+                    reason = f"35% Premium Stop Loss Hit (LTP: {ltp:.2f} >= SL: {sl_price:.2f})"
+                elif running_pnl <= effective_max_loss_pnl:
+                    trigger_exit = True
+                    reason = f"Max Loss Cap Triggered (PnL: Rs. {running_pnl:.2f} <= Limit: Rs. {effective_max_loss_pnl:.2f})"
+                elif running_pnl >= effective_target_pnl:
+                    trigger_exit = True
+                    reason = f"Target Profit Reached (PnL: Rs. {running_pnl:.2f} >= Target: Rs. {effective_target_pnl:.2f})"
+                elif now_time >= dt_time(15, 15):
+                    trigger_exit = True
+                    reason = "15:15 PM EOD Squareoff"
+                    
+                if trigger_exit:
+                    self.logger.warning(f"[{self.name}] [STRATEGY 20 EXIT] Closing short leg {pos['symbol']} on {acc_name}: {reason}")
+                    acc_api.place_order(
+                        security_id=sec_id,
+                        transaction_type="BUY",
+                        quantity=qty,
+                        exchange_segment=pos.get('exchange_segment', 'NSE_FNO'),
+                        product_type="MARGIN",
+                        order_type="MARKET",
+                        price=0.0
+                    )
+                    with self.state.lock:
+                        if sec_id in self.state.positions:
+                            del self.state.positions[sec_id]
+                    self.state.save_state()
 
 
 

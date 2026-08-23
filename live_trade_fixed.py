@@ -64,6 +64,19 @@ if __name__ == "__main__":
     try:
         config = Config()
         logger = setup_logging(config)
+
+        # H5 FIX: Validate mandatory credentials immediately. An empty .env causes
+        # silent first-call failures deep inside the bot. Fail fast with a clear message.
+        missing = []
+        if not config.CLIENT_ID:
+            missing.append("DHAN_CLIENT_ID")
+        if not config.API_TOKEN:
+            missing.append("DHAN_API_TOKEN")
+        if missing:
+            msg = f"[CRITICAL] Missing required credentials in .env: {', '.join(missing)}. Bot cannot start."
+            logger.critical(msg)
+            print(msg, file=sys.stderr)
+            sys.exit(1)
         
         # Register SIGTERM / SIGINT handler for clean systemd shutdowns
         import signal

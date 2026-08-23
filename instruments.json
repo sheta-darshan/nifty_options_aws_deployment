@@ -5,8 +5,6 @@
         "exchange_segment": "IDX_I",
         "option_segment": "NSE_FNO",
         "lot_size": 65,
-        "num_lots_buy": 1,
-        "num_lots_sell": 1,
         "strike_step": 50,
         "fno_prefix": "NIFTY",
         "enabled": 0,
@@ -14,7 +12,7 @@
         "daily_limit": 2,
         "profit_target_buy": 0,
         "profit_target_sell": 0,
-        "expiry_index": 1,
+        "expiry_index": 0,
         "num_strikes": 1,
         "trailing_mult_buy": 0,
         "trailing_mult_sell": 0,
@@ -40,8 +38,22 @@
         "points_be_sell": 0.0,
         "local_exit_monitoring": false,
         "strategy_overrides": {
+            "Strategy_1": {
+                "LEG_MODE": "SELL",
+                "carry_forward": false,
+                "max_active": 1,
+                "daily_limit": 3,
+                "option_strategy_mode": 2,
+                "exit_mode": "POINTS",
+                "points_sl_sell": 36.0,
+                "points_target_sell": 84.0,
+                "points_trail_sell": 0.0,
+                "points_be_sell": 0.0,
+                "num_lots_buy": 0,
+                "num_lots_sell": 1
+            },
             "Strategy_3": {
-                "gatekeeper_enabled": 1,
+                "gatekeeper_enabled": 0,
                 "gatekeeper_single_strike": 3,
                 "gatekeeper_window_minutes": 5,
                 "gatekeeper_time_filter_minutes": 20,
@@ -55,21 +67,26 @@
                 "profit_target_sell": 0,
                 "expiry_index": 0,
                 "num_strikes": 1,
+                "num_lots_sell": 1,
                 "short_option_target_type": "MAX_PROFIT",
                 "short_option_decay_value": 0.05,
+                "tp_mult_sell": 2,
                 "strike_offset": 0,
                 "strike_offset_buy": 0,
                 "strike_offset_sell": 0,
                 "option_strategy_mode": "DIRECT",
                 "strategy_leg_width": 2,
-                "exit_mode": "ATR",
-                "points_sl_buy": 36,
-                "points_target_buy": 60,
+                "exit_mode": "POINTS",
+                "points_sl_buy": 63,
+                "points_target_buy": 109,
                 "points_be_buy": 0,
-                "points_trail_buy": 12,
-                "points_sl_sell": 43,
-                "points_target_sell": 100,
+                "points_trail_buy": 0,
+                "points_sl_sell": 64.0,
+                "points_target_sell": 84.0,
                 "points_trail_sell": 0,
+                "LEG_MODE": "SELL",
+                "local_exit_monitoring": false,
+                "carry_forward": true,
                 "allowed_regimes_trend": [
                     "NEUTRAL",
                     "RANGE"
@@ -143,13 +160,16 @@
                 "points_target_sell": 45.0,
                 "points_trail_sell": 0.0,
                 "points_be_sell": 0.0,
-                "num_lots_buy": 1,
+                "num_lots_buy": 0,
                 "num_lots_sell": 1
             },
             "Strategy_19": {
                 "timeframe": "5min",
                 "min_ml_prob": 0.42,
                 "exit_mode": "POINTS",
+                "LEG_MODE": "BUY",
+                "max_active": 1,
+                "daily_limit": 1,
                 "points_sl_buy": 36.0,
                 "points_target_buy": 75.0,
                 "points_trail_buy": 0.0,
@@ -159,23 +179,29 @@
                 "points_trail_sell": 0.0,
                 "points_be_sell": 0.0,
                 "num_lots_buy": 1,
-                "num_lots_sell": 1
+                "num_lots_sell": 0
             },
             "Strategy_20": {
-                "strategy_type": "CALENDAR_SPREAD",
-                "trade_both_sides": 1,
-                "target_long_premium": 200,
-                "target_short1_premium": 120,
-                "target_short2_premium": 300,
-                "max_strike_gap": 1000,
-                "num_lots_long": 3,
-                "num_lots_short1": 1,
-                "num_lots_short2": 1,
-                "base_covid_low": 7511.0,
-                "cagr_rate": 0.117,
-                "cagr_base_date": "2020-03-24",
-                "upper_threshold": 1.25,
-                "lower_threshold": 0.95
+                "LEG_MODE": "SELL",
+                "carry_forward": false,
+                "max_active": 1,
+                "daily_limit": 3,
+                "option_strategy_mode": 2,
+                "entry_time": "09:45:00",
+                "timeframe": "15min",
+                "num_lots_buy": 0,
+                "num_lots_sell": 1,
+                "ema_fast": 9,
+                "ema_slow": 21,
+                "otm_offset": 0,
+                "leg_sl_pct": 0.35,
+                "exit_mode": "POINTS",
+                "points_sl_sell": 15.0,
+                "points_target_sell": 20.0,
+                "points_trail_sell": 0.0,
+                "points_be_sell": 0.0,
+                "target_profit": 2000.0,
+                "stop_loss": -2500.0
             },
             "Strategy_15": {
                 "OPENING_PATTERN_FILTER": true,
@@ -199,6 +225,9 @@
             },
             "Strategy_14": {
                 "exit_mode": "POINTS",
+                "LEG_MODE": "BUY",
+                "max_active": 1,
+                "daily_limit": 1,
                 "points_sl_buy": 18.0,
                 "points_target_buy": 72.0,
                 "points_trail_buy": 0.0,
@@ -208,7 +237,7 @@
                 "points_trail_sell": 0.0,
                 "points_be_sell": 0.0,
                 "num_lots_buy": 1,
-                "num_lots_sell": 1
+                "num_lots_sell": 0
             },
             "Strategy_13": {
                 "exit_mode": "SWING",
@@ -220,6 +249,45 @@
                 "tp_mult_sell": 5.0,
                 "trailing_mult_sell": 0.0,
                 "atr_be_sell": 0.0
+            },
+            "Strategy_21": {
+                "exit_mode": "POINTS",
+                "carry_forward": true,
+                "points_sl_buy": 20.0,
+                "points_target_buy": 10.0,
+                "points_trail_buy": 0.0,
+                "points_be_buy": 0.0,
+                "points_sl_sell": 36.0,
+                "points_target_sell": 50.0,
+                "points_trail_sell": 0.0,
+                "points_be_sell": 0.0,
+                "num_lots_buy": 1,
+                "num_lots_sell": 1,
+                "strike_offset_sell": 1,
+                "aroon_period": 50
+            },
+            "Strategy_22": {
+                "TIMEFRAME": "5min",
+                "ENTRY_MODE": "SPREAD_ATR",
+                "EXIT_MODE": "OPPOSITE_CROSS",
+                "PRICE_SOURCE": "OHLC4",
+                "EMA_FAST": 18,
+                "SMMA_BASE": 18,
+                "exit_mode": "POINTS",
+                "carry_forward": false,
+                "points_sl_buy": 20.0,
+                "points_target_buy": 40.0,
+                "points_trail_buy": 0.0,
+                "points_be_buy": 0.0,
+                "points_sl_sell": 36.0,
+                "points_target_sell": 84.0,
+                "points_trail_sell": 0.0,
+                "points_be_sell": 0.0,
+                "num_lots_buy": 1,
+                "num_lots_sell": 1,
+                "CONFIRMATION_CANDLES": 1,
+                "MIN_SPREAD_ATR": 0.15,
+                "USE_ATR_EXPANSION": false
             }
         },
         "optimization_grid": {
@@ -258,16 +326,20 @@
                 25
             ],
             "points_sl_sell": [
-                50,
-                75,
-                100,
-                125,
-                150,
-                175,
-                200
+                3,
+                6,
+                9,
+                12,
+                15,
+                18,
+                21,
+                24,
+                27,
+                30
             ],
             "points_target_sell": [
                 10,
+                12,
                 15,
                 20,
                 30,
@@ -358,7 +430,7 @@
         "num_lots_sell": 1,
         "strike_step": 100,
         "fno_prefix": "SENSEX",
-        "gatekeeper_enabled": 1,
+        "gatekeeper_enabled": 0,
         "gatekeeper_single_strike": 3,
         "gatekeeper_window_minutes": 5,
         "gatekeeper_time_filter_minutes": 20,
@@ -384,7 +456,7 @@
         "short_option_decay_value": 0.05,
         "exit_mode": "POINTS",
         "points_sl_buy": 75,
-        "points_target_buy": 300,
+        "points_target_buy": 100,
         "points_be_buy": 0.5,
         "points_trail_buy": 0,
         "points_sl_sell": 98,
@@ -3005,7 +3077,7 @@
         "gatekeeper_volume_multiplier": 1.5,
         "gatekeeper_oi_min_change_pct": 1.5,
         "block_expiry_day_trades": 1,
-        "enabled": 0,
+        "enabled": 1,
         "fno_prefix": "LTF",
         "strike_step": 5,
         "trailing_mult_buy": 0.7,
@@ -3084,8 +3156,7 @@
             ]
         },
         "allowed_actions": [
-            "BUY",
-            "SELL"
+            "BUY"
         ]
     },
     "RBLBANK": {
@@ -4153,7 +4224,7 @@
         "profit_target_sell": 0,
         "expiry_index": 0,
         "num_strikes": 1,
-        "enabled": 1,
+        "enabled": 0,
         "fno_prefix": "APLAPOLLO",
         "strike_step": 20,
         "trailing_mult_buy": 0.7,
@@ -4232,7 +4303,8 @@
             ]
         },
         "allowed_actions": [
-            "BUY"
+            "BUY",
+            "SELL"
         ]
     },
     "ASHOKLEY": {
@@ -11261,7 +11333,7 @@
         "gatekeeper_volume_multiplier": 1.5,
         "gatekeeper_oi_min_change_pct": 1.5,
         "block_expiry_day_trades": 1,
-        "enabled": 1,
+        "enabled": 0,
         "fno_prefix": "INDUSTOWER",
         "strike_step": 5,
         "trailing_mult_buy": 0.7,
@@ -11340,7 +11412,8 @@
             ]
         },
         "allowed_actions": [
-            "BUY"
+            "BUY",
+            "SELL"
         ]
     },
     "INFY": {
@@ -17501,7 +17574,7 @@
         "gatekeeper_volume_multiplier": 1.5,
         "gatekeeper_oi_min_change_pct": 1.5,
         "block_expiry_day_trades": 1,
-        "enabled": 0,
+        "enabled": 1,
         "fno_prefix": "SAMMAANCAP",
         "strike_step": 2.5,
         "trailing_mult_buy": 0.7,
@@ -17580,8 +17653,7 @@
             ]
         },
         "allowed_actions": [
-            "BUY",
-            "SELL"
+            "BUY"
         ]
     },
     "SBICARD": {
@@ -18546,7 +18618,7 @@
         "gatekeeper_volume_multiplier": 1.5,
         "gatekeeper_oi_min_change_pct": 1.5,
         "block_expiry_day_trades": 1,
-        "enabled": 1,
+        "enabled": 0,
         "fno_prefix": "SUNPHARMA",
         "strike_step": 20,
         "trailing_mult_buy": 0.7,
@@ -18625,7 +18697,8 @@
             ]
         },
         "allowed_actions": [
-            "BUY"
+            "BUY",
+            "SELL"
         ]
     },
     "SUPREMEIND": {
@@ -19590,7 +19663,7 @@
         "gatekeeper_volume_multiplier": 1.5,
         "gatekeeper_oi_min_change_pct": 1.5,
         "block_expiry_day_trades": 1,
-        "enabled": 0,
+        "enabled": 1,
         "fno_prefix": "TIINDIA",
         "strike_step": 20,
         "trailing_mult_buy": 0.7,
@@ -19669,8 +19742,7 @@
             ]
         },
         "allowed_actions": [
-            "BUY",
-            "SELL"
+            "BUY"
         ]
     },
     "TITAN": {

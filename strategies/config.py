@@ -48,14 +48,15 @@ class BacktestConfig:
         self.CARRY_FORWARD = os.getenv("CARRY_FORWARD", "True").strip().upper() == "TRUE"
         self.USE_DYNAMIC_EXITS = os.getenv("USE_DYNAMIC_EXITS", "False").strip().upper() == "TRUE"
 
-        self.ENABLE_STRATEGY_17 = False
-        self.ENABLE_STRATEGY_18 = False
-        self.ENABLE_STRATEGY_19 = False
+        # BUG-C5 FIX: Removed duplicate assignment block that was resetting
+        # ENABLE_STRATEGY_17/18/19 to False, overriding the True values set above.
         self.ENABLE_STRATEGY_20 = False
+        self.ENABLE_STRATEGY_21 = False
+        self.ENABLE_STRATEGY_22 = False
         
         # Resolve active strategy parameters to prevent collision
         active_strategy = "Strategy_3"
-        for i in range(1, 21):
+        for i in range(1, 23):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 active_strategy = f"Strategy_{i}"
                 break

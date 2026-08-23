@@ -15,7 +15,7 @@ class CentralizedPositionManager(threading.Thread):
     Background Thread to poll positions once globally for all accounts.
     Redundant individual loops are replaced by this shared cache dictionary.
     """
-    def __init__(self, order_manager, logger: logging.Logger, poll_interval: int = 3):
+    def __init__(self, order_manager, logger: logging.Logger, poll_interval: int = 10):
         super().__init__()
         self.order_manager = order_manager
         self.logger = logger

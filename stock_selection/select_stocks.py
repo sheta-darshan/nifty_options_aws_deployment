@@ -8,7 +8,7 @@ import time
 import requests
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from multiprocessing.pool import ThreadPool
 from dotenv import load_dotenv
 
@@ -128,7 +128,16 @@ def precompute_nifty_features():
         df_by_date = {d: grp for d, grp in df.groupby(df.index.date)}
         nifty_features = {}
         for d, day_df in df_by_date.items():
-            last_30_df = day_df.between_time('15:00', '15:29')
+            from datetime import date
+            if d >= date(2026, 8, 3):
+                last_30_df = day_df.between_time('14:45', '15:14')
+            else:
+                max_time = day_df.index.max().time() if not day_df.empty else None
+                if max_time and max_time >= dt_time(15, 25):
+                    last_30_df = day_df.between_time('15:00', '15:29')
+                else:
+                    last_30_df = day_df.between_time('14:45', '15:14')
+                
             if len(last_30_df) < 25:
                 continue
             ret_30m = (last_30_df['close'].iloc[-1] - last_30_df['open'].iloc[0]) / (last_30_df['open'].iloc[0] + 1e-8)
@@ -189,7 +198,16 @@ def extract_features_for_last_day(symbol, nifty_features=None):
         
         for d in reversed(chronological_dates):
             day_df = df_by_date[d]
-            last_30_df = day_df.between_time('15:00', '15:29')
+            from datetime import date
+            if d >= date(2026, 8, 3):
+                last_30_df = day_df.between_time('14:45', '15:14')
+            else:
+                max_time = day_df.index.max().time() if not day_df.empty else None
+                if max_time and max_time >= dt_time(15, 25):
+                    last_30_df = day_df.between_time('15:00', '15:29')
+                else:
+                    last_30_df = day_df.between_time('14:45', '15:14')
+                
             if len(last_30_df) >= 25:
                 last_date = d
                 features_found = True
@@ -390,14 +408,23 @@ def update_spot_file_if_stale(symbol, client_id, api_token):
             is_holiday = now_ist.strftime("%Y-%m-%d") in NSE_HOLIDAYS
             is_trading_day = is_weekday and not is_holiday
             
-            if is_trading_day and now_ist.time() >= datetime.strptime("15:30", "%H:%M").time():
+            # Closing time is 15:15 starting August 3, 2026
+            closing_time_str = "15:15" if now_ist.date() >= datetime.strptime("2026-08-03", "%Y-%m-%d").date() else "15:30"
+            if is_trading_day and now_ist.time() >= datetime.strptime(closing_time_str, "%H:%M").time():
                 # Market closed today. We need today's close.
                 target_date = now_ist.date()
             else:
                 # Weekend, holiday, or before market close today. We need the previous trading day's close.
                 target_date = get_last_trading_date(now_ist.date() - timedelta(days=1), NSE_HOLIDAYS)
                 
-            if last_ts.date() == target_date and last_ts.hour == 15 and last_ts.minute >= 29:
+            # If target_date is on/after August 3, 2026, session ends at 15:15 (last candle 15:14).
+            # Otherwise, session ends at 15:30 (last candle 15:29).
+            if target_date >= datetime.strptime("2026-08-03", "%Y-%m-%d").date():
+                has_enough_candles = (last_ts.hour == 15 and last_ts.minute >= 14) or (last_ts.hour > 15)
+            else:
+                has_enough_candles = (last_ts.hour == 15 and last_ts.minute >= 29)
+                
+            if last_ts.date() == target_date and has_enough_candles:
                 is_up_to_date = True
 
         if is_up_to_date:
