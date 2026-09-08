@@ -109,7 +109,7 @@ All strategies inherit from `BaseStrategy` and register via `@register_strategy`
 | **Strategy_19** | Strategy19 | Institutional Quant ML | 1-Min | OPTION/STOCK | XGBoost ML Classifier ($P_{\text{trend}} \ge 42\%$) |
 | **Strategy_20** | Strategy_20 | 15-Min Supertrend Option Writer | 15-Min / 1-Min | OPTION (SELL) | 1-Trade/Day; 15m Supertrend (10, 2.0); Target 45 pts, SL 20 pts, Breakeven 15 pts |
 | **Strategy_21** | Strategy21 | NIFTY Institutional Multi-Pivot Reversal | 5-Min | OPTION (BUY) | Dhan MTF Weekly CPR (#16) + Daily CPR (#15) + Cam L3/H3 + PDH/PDL; Rejection Wick $\ge 50\%$, 2.2R, Max 2 Trades/Day |
-| **Strategy_22** | Strategy22 | Triple Momentum Enhanced (TM-Pro) | 5-Min | OPTION (SELL) | 5m Triple EMA (8, 18, 30) + Supertrend 10/2.5 + ADX Momentum + Anti-Stretch |
+| **Strategy_22** | Strategy22 | Triple Momentum Enhanced (TM-Pro) | 5-Min | OPTION (SELL) | 5m Triple EMA (8, 18, 30) + Supertrend 10/2.5 + ADX + Midday Chop Filter (13:00-13:50). Multi-Index Calibrated: NIFTY, BANKNIFTY, SENSEX (~80% WR) |
 | **Strategy_BTST**| StrategyBTST| Buy Today Sell Tomorrow | Daily / 5-Min | OPTION/STOCK | 14:50 PM afternoon breakout for overnight gap |
 
 
