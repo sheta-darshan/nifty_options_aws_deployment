@@ -60,6 +60,7 @@ class BacktestConfig:
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 active_strategy = f"Strategy_{i}"
                 break
+
         
         # Strategy 12 relies on dynamic exits for time-based closures
         if active_strategy == "Strategy_12":
@@ -82,6 +83,6 @@ class BacktestConfig:
         if strategy_name == "Strategy_12":
             self.USE_DYNAMIC_EXITS = True
             
-        if strategy_name == "Strategy_14":
+        if strategy_name in ["Strategy_14", "Strategy_20"]:
             self.RUN_START = pd.to_datetime('09:15:00').time()
 

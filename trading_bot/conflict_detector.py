@@ -46,54 +46,44 @@ class ConflictDetector:
         self.metrics = get_metrics()
 
     def detect_shared_daily_limit_conflict(self) -> List[Dict]:
-        """Identify cases where one strategy has consumed all daily slots
-        and would block other strategies from trading.
+        """Identify cases where strategies on an account have consumed daily slots
+        under per-strategy accounting, or verify per-strategy isolation.
 
-        Returns list of {strategy, daily_count, daily_limit, would_block: [...other_strategies]}
+        Returns list of {account, strategy, daily_count, daily_limit, is_saturated: bool}
         """
         conflicts = []
         daily_counts = getattr(self.bot, "daily_trade_counts", {})
         daily_limit = getattr(self.bot, "DAILY_LIMIT", 5)
         inst_config = self.bot.config.INSTRUMENTS.get(self.bot.name, {})
 
-        # Per-account daily limit overrides
-        accounts = self.bot.order_manager.get_accounts()
-        active_strategies = [f"Strategy_{i}" for i in range(1, 21)]
+        from strategies.registry import STRATEGY_REGISTRY
+        active_strategies = list(STRATEGY_REGISTRY.keys()) if STRATEGY_REGISTRY else [f"Strategy_{i}" for i in range(1, 23)]
 
         for acc in accounts:
             acc_name = acc["name"]
             acc_config = acc.get("config", {})
             overrides = acc_config.get("instrument_overrides", {}).get(self.bot.name, {})
-            acc_daily_limit = overrides.get(
-                "daily_limit", acc_config.get("daily_limit", daily_limit)
-            )
-            current_count = daily_counts.get(acc_name, 0)
 
-            if current_count >= acc_daily_limit:
-                # This account is saturated; find which strategies are blocked
-                # We check positions to find which strategies actually traded
-                strats_that_traded = set()
-                with self.bot.state.lock:
-                    for pos in self.bot.state.positions.values():
-                        if pos.get("instrument") == self.bot.name:
-                            strats_that_traded.add(pos.get("strategy", "Unknown"))
+            for strat in active_strategies:
+                strat_config = self.bot.get_strategy_instrument_config(strat) if hasattr(self.bot, "get_strategy_instrument_config") else {}
+                strat_daily_limit = overrides.get(
+                    "daily_limit_per_strategy",
+                    overrides.get("daily_limit", acc_config.get("daily_limit", strat_config.get("daily_limit_per_strategy", strat_config.get("daily_limit", daily_limit))))
+                )
 
-                # Any OTHER active strategy on this instrument is now blocked
-                blocked_strategies = [
-                    s for s in active_strategies
-                    if s not in strats_that_traded and s != "Strategy_20"
-                    # Strategy_20 is special - it's option writing which uses daily_trade_counts too
-                ]
+                strat_dict = daily_counts.get(strat, {}) if isinstance(daily_counts, dict) else {}
+                current_count = strat_dict.get(acc_name, 0) if isinstance(strat_dict, dict) else 0
 
-                conflicts.append({
-                    "type": "shared_daily_limit",
-                    "account": acc_name,
-                    "consumed_by": list(strats_that_traded),
-                    "daily_count": current_count,
-                    "daily_limit": acc_daily_limit,
-                    "would_block": blocked_strategies,
-                    "severity": "high" if len(blocked_strategies) > 0 else "low",
-                })
+                if current_count >= strat_daily_limit:
+                    conflicts.append({
+                        "type": "per_strategy_daily_limit",
+                        "account": acc_name,
+                        "strategy": strat,
+                        "daily_count": current_count,
+                        "daily_limit": strat_daily_limit,
+                        "is_saturated": True,
+                        "severity": "low",
+                    })
         return conflicts
 
     def detect_max_active_isolation(self) -> List[Dict]:
@@ -105,7 +95,8 @@ class ConflictDetector:
         inst_config = self.bot.config.INSTRUMENTS.get(self.bot.name, {})
         global_max = inst_config.get("max_active", 1)
 
-        active_strategies = [f"Strategy_{i}" for i in range(1, 21)]
+        from strategies.registry import STRATEGY_REGISTRY
+        active_strategies = list(STRATEGY_REGISTRY.keys()) if STRATEGY_REGISTRY else [f"Strategy_{i}" for i in range(1, 23)]
         for strat in active_strategies:
             try:
                 count = self.bot._count_my_active_positions(

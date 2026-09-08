@@ -29,4 +29,4 @@ from . import strategy_18
 from . import strategy_19
 from . import strategy_20
 from . import strategy_21
-from . import strategy_22
+from . import strategy_22

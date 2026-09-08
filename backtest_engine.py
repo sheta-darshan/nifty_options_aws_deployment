@@ -1,4 +1,5 @@
 import os
+import glob
 import time
 import requests
 import json
@@ -20,6 +21,7 @@ _FALLBACK_CE_CACHE = {}
 _FALLBACK_PE_CACHE = {}
 _FALLBACK_CE_DICT_CACHE = {}
 _FALLBACK_PE_DICT_CACHE = {}
+_OFFLINE_OPT_DAY_CACHE = {}
 
 NSE_HOLIDAYS = {
     # 2021
@@ -52,6 +54,19 @@ NSE_HOLIDAYS = {
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "backtest_data")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# Load Known Exclusions for Offline Option Datasets
+KNOWN_OFFLINE_EXCLUSIONS = set()
+KNOWN_DECEMBER_GAP_YEARS = set()
+exclusions_path = os.path.join(BASE_DIR, "tools", "data_audit", "known_exclusions.json")
+if os.path.exists(exclusions_path):
+    try:
+        with open(exclusions_path, 'r') as f:
+            ex_data = json.load(f)
+            KNOWN_OFFLINE_EXCLUSIONS = set(ex_data.get("parity_outlier_dates", []))
+            KNOWN_DECEMBER_GAP_YEARS = set(ex_data.get("december_gap_years", []))
+    except Exception as e:
+        print(f"[WARNING] Failed to load known_exclusions.json: {e}")
 
 # Load F&O Inception Cache
 FNO_INCEPTION_CACHE = {}
@@ -146,6 +161,7 @@ class SimulationEngine:
     def _load_instrument_config(self, instrument_name):
         inst_file = os.path.join(BASE_DIR, "instruments.json")
         defaults = {
+            "security_id": 25 if instrument_name == "BANKNIFTY" else (13 if instrument_name == "NIFTY" else 13),
             "lot_size": 25,
             "num_lots_buy": 1,
             "num_lots_sell": 1,
@@ -192,6 +208,7 @@ class SimulationEngine:
                     if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
                         strat_name = f"Strategy_{i}"
                         break
+
             if strat_name:
                 overrides = inst.get("strategy_overrides", {}).get(strat_name, {})
                 if isinstance(overrides, dict) and overrides:
@@ -327,7 +344,7 @@ class SimulationEngine:
             except Exception as e:
                 need_download = True
                 
-        if need_download:
+        if need_download and not self.offline_mode:
             self._auto_download_spot_candles(spot_path)
             
         self.df_spot = pd.read_csv(spot_path)
@@ -1324,16 +1341,20 @@ class SimulationEngine:
                     except Exception as e:
                         print(f"[WARNING] Offline strike adjustment failed for {date_str}: {e}")
                 return df_fallback
-            return pd.DataFrame()
             
         expiry_index = self.inst_config.get("expiry_index", 0)
         expiry_str = expiry_date_str or self._get_actual_expiry_date(trade_date, expiry_index)
         cache_filename = f"{prefix}_{strike}_{option_type.upper()}_exp{expiry_index}_expiry{expiry_str}_{date_str}.csv"
         cache_path = os.path.join(self.cache_dir, cache_filename)
+        if not os.path.exists(cache_path):
+            glob_matches = glob.glob(os.path.join(self.cache_dir, f"{prefix}_{strike}_{option_type.upper()}_exp{expiry_index}_*_{date_str}.csv"))
+            if glob_matches:
+                cache_path = glob_matches[0]
         
         # 1. Check Local Disk Cache
         if os.path.exists(cache_path):
             try:
+                df = pd.DataFrame()
                 if os.path.getsize(cache_path) < 100:
                     os.remove(cache_path)
                 else:
@@ -1359,6 +1380,67 @@ class SimulationEngine:
                     return df
             except Exception as e:
                 print(f"[WARNING] Failed to read cached file {cache_path}: {e}")
+
+        # 2. Check 5-Year Offline Historical Options Dataset (NIFTY Front-Week)
+        disable_offline_dataset = os.getenv("DISABLE_OFFLINE_DATASET", "False").lower() in ("true", "1", "yes")
+        if not disable_offline_dataset and prefix == "nifty" and expiry_index == 0:
+            front_expiry_str = self._get_expiry_date(trade_date, 0)
+            if expiry_str == front_expiry_str:
+                is_december_gap = (
+                    (trade_date.year in KNOWN_DECEMBER_GAP_YEARS) and 
+                    (trade_date.month == 12) and 
+                    (trade_date.day > 1)
+                )
+                
+                if date_str not in KNOWN_OFFLINE_EXCLUSIONS and not is_december_gap:
+                    global _OFFLINE_OPT_DAY_CACHE
+                    df_raw = _OFFLINE_OPT_DAY_CACHE.get(date_str)
+                    
+                    if df_raw is None:
+                        opt_hist_root = os.path.join(BASE_DIR, "backtest_data", "Nifty_option_historical", "Week_1min")
+                        target_pattern = os.path.join(opt_hist_root, "*", f"NIFTY_{date_str}_1m.csv")
+                        matches = glob.glob(target_pattern)
+                        
+                        if matches and os.path.exists(matches[0]):
+                            try:
+                                df_loaded = pd.read_csv(matches[0])
+                                df_loaded.drop_duplicates(subset=['datetime', 'strike_label', 'option_type'], inplace=True)
+                                _OFFLINE_OPT_DAY_CACHE[date_str] = df_loaded
+                                df_raw = df_loaded
+                            except Exception as e:
+                                print(f"[WARNING] Failed to load offline options dataset for {date_str}: {e}")
+                                
+                    if df_raw is not None and not df_raw.empty:
+                        try:
+                            # Filter strictly by ABSOLUTE strike_price with float tolerance check
+                            target_strike_val = float(strike)
+                            opt_target = "CALL" if option_type.upper() in ["CE", "CALL"] else "PUT"
+                            
+                            df_filtered = df_raw[
+                                ((df_raw['strike_price'] - target_strike_val).abs() < 0.01) & 
+                                (df_raw['option_type'] == opt_target)
+                            ].copy()
+                            
+                            if not df_filtered.empty:
+                                df_filtered['timestamp'] = pd.to_datetime(df_filtered['datetime'])
+                                df_filtered.set_index('timestamp', inplace=True)
+                                df_filtered.sort_index(inplace=True)
+                                
+                                cols_to_keep = ['open', 'high', 'low', 'close', 'volume', 'oi', 'iv', 'strike_price', 'spot']
+                                available_cols = [c for c in cols_to_keep if c in df_filtered.columns]
+                                df_result = df_filtered[available_cols]
+                                
+                                # Persist to contract_cache for instant subsequent hits
+                                try:
+                                    os.makedirs(self.cache_dir, exist_ok=True)
+                                    df_result.to_csv(cache_path)
+                                except Exception:
+                                    pass
+                                    
+                                print(f"[OFFLINE DATASET] Served {self.instrument_name} {strike} {option_type} for {date_str} from 5-year dataset")
+                                return df_result
+                        except Exception as e:
+                            print(f"[WARNING] Failed to extract strike {strike} from offline dataset for {date_str}: {e}")
 
         # 3. Cache Miss -> Try dynamic query DhanHQ charts API
         df = pd.DataFrame()
@@ -1655,7 +1737,7 @@ class SimulationEngine:
                 self.active_trades = still_active
                 
             # 2. 15:15 Force Close / Expiry Day Close Logic
-            carry_forward = getattr(self.config, "CARRY_FORWARD", False)
+            carry_forward = self.inst_config.get("carry_forward", getattr(self.config, "CARRY_FORWARD", False))
             if self.active_trades and current_time >= time_1500:
                 still_active = []
                 for trade in self.active_trades:
@@ -1816,11 +1898,17 @@ class SimulationEngine:
                                     base_legs.append(("CE", False, strike_offset_buy))
                                 elif signal == -1:
                                     base_legs.append(("PE", False, strike_offset_buy))
+                                elif signal == 2:
+                                    base_legs.append(("CE", False, strike_offset_buy))
+                                    base_legs.append(("PE", False, strike_offset_buy))
                             elif leg_mode == "SELL":
                                 if signal == 1:
                                     base_legs.append(("PE", True, strike_offset_sell))
                                 elif signal == -1:
                                     base_legs.append(("CE", True, strike_offset_sell))
+                                elif signal == 2:
+                                    base_legs.append(("CE", True, strike_offset_sell))
+                                    base_legs.append(("PE", True, strike_offset_sell))
                             elif leg_mode == "BOTH":
                                 if signal == 1:
                                     base_legs.append(("CE", False, strike_offset_buy)) # Buy CE
@@ -1828,6 +1916,9 @@ class SimulationEngine:
                                 elif signal == -1:
                                     base_legs.append(("PE", False, strike_offset_buy)) # Buy PE
                                     base_legs.append(("CE", True, strike_offset_sell))  # Sell CE
+                                elif signal == 2:
+                                    base_legs.append(("CE", True, strike_offset_sell))
+                                    base_legs.append(("PE", True, strike_offset_sell))
                         elif strat_mode == "DEBIT_SPREAD":
                             if signal == 1:
                                 base_legs.append(("CE", False, strike_offset_buy)) # Buy CE ATM

@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import pandas_ta as ta
 from datetime import datetime, timedelta, time as dt_time
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Union
 
 from trading_bot.config import Config
 from trading_bot.api_wrapper import DhanAPIWrapper, safe_int
@@ -117,37 +117,52 @@ class InstrumentBot(threading.Thread):
                 return val.strip().lower() in ("true", "1", "yes")
         return getattr(self.config, "CARRY_FORWARD", True)
 
+    @staticmethod
+    def _make_position_key(account_name: str, strategy: str, security_id: Union[str, int]) -> str:
+        return f"{account_name}::{strategy}::{security_id}"
+
     def reconcile_positions_with_broker(self):
         """
         Reconcile local self.state.positions with active broker positions.
         Prunes local entries that are no longer open on the broker.
         """
         self.logger.info(f"[{self.name}] Reconciling local positions with broker...")
-        broker_sec_ids = set()
+        broker_sec_ids_by_acc = {}
         try:
             accounts = self.order_manager.get_accounts()
             for acc in accounts:
+                acc_name = acc['name']
                 acc_api = acc['api']
+                acc_set = set()
                 try:
                     pos_list = acc_api.get_positions()
                     if pos_list:
                         for pos in pos_list:
                             net_qty = safe_int(pos.get('netQty', 0))
                             if net_qty != 0:
-                                broker_sec_ids.add(str(pos.get('securityId')))
+                                acc_set.add(str(pos.get('securityId')))
                 except Exception as e:
-                    self.logger.error(f"[{self.name}] Reconcile failed to fetch positions for {acc['name']}: {e}")
+                    self.logger.error(f"[{self.name}] Reconcile failed to fetch positions for {acc_name}: {e}")
+                broker_sec_ids_by_acc[acc_name] = acc_set
             
             # Prune local positions that aren't on the broker
             to_remove = []
+            all_broker_sec_ids = set().union(*broker_sec_ids_by_acc.values()) if broker_sec_ids_by_acc else set()
             with self.state.lock:
-                for sec_id, pos in self.state.positions.items():
+                for pos_key, pos in self.state.positions.items():
                     if pos.get('instrument') == self.name:
-                        if sec_id not in broker_sec_ids:
-                            self.logger.warning(f"[{self.name}] Reconcile: Pruning stale local position {sec_id} ({pos.get('symbol')}) not found on broker.")
-                            to_remove.append(sec_id)
-                for sec_id in to_remove:
-                    self.state.positions.pop(sec_id, None)
+                        pos_acc = pos.get('account')
+                        pos_sec_id = str(pos.get('security_id') or (pos_key.split('::')[-1] if '::' in str(pos_key) else pos_key))
+                        if pos_acc and pos_acc in broker_sec_ids_by_acc:
+                            is_open = pos_sec_id in broker_sec_ids_by_acc[pos_acc]
+                        else:
+                            is_open = pos_sec_id in all_broker_sec_ids
+                        
+                        if not is_open:
+                            self.logger.warning(f"[{self.name}] Reconcile: Pruning stale local position {pos_key} ({pos.get('symbol')}) not found on broker account '{pos_acc}'.")
+                            to_remove.append(pos_key)
+                for pos_key in to_remove:
+                    self.state.positions.pop(pos_key, None)
             if to_remove:
                 self.state.save_state()
         except Exception as e:
@@ -228,7 +243,7 @@ class InstrumentBot(threading.Thread):
             return True # Fail-safe bypass
             
         expiry_list.sort()
-        target_expiry_idx = inst_config.get('expiry_index', 1)
+        target_expiry_idx = inst_config.get('expiry_index', 0)
         if len(expiry_list) > target_expiry_idx:
             nearest_expiry = expiry_list[target_expiry_idx]
         else:
@@ -470,6 +485,16 @@ class InstrumentBot(threading.Thread):
                 
                 # 3. Wait
                 wait_for_next_candle(now, self.config.POLL_INTERVAL_SECS, self.logger, offset_seconds=self.poll_offset)
+
+            except RuntimeError as e:
+                self.logger.critical(f"[{self.name}] CRITICAL: Circuit breaker / Fatal runtime error: {e}")
+                if self.alert_manager:
+                    self.alert_manager.send_alert(
+                        f"🚨 *CRITICAL: {self.name} Bot Stopped*\nReason: {e}\nInitiating graceful shutdown.",
+                        header="Critical Bot Shutdown"
+                    )
+                self.running = False
+                break
 
             except Exception as e:
                 import traceback
@@ -742,21 +767,26 @@ class InstrumentBot(threading.Thread):
                 except Exception as e:
                     self.logger.error(f"[{self.name}] Error checking expiry block: {e}")
 
-        # 1. Early Daily Limit Check (Per Account) - Saves API calls
+        # 1. Early Daily Limit Check (Per Account, Per Strategy) - Saves API calls
         accounts = self.order_manager.get_accounts()
+        strat_config = self.get_strategy_instrument_config(source)
         all_limited = True
         for acc in accounts:
             acc_name = acc['name']
             acc_config = acc.get('config', {})
             overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-            acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', self.DAILY_LIMIT))
+            acc_daily_limit = overrides.get(
+                'daily_limit_per_strategy',
+                overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit_per_strategy', strat_config.get('daily_limit', self.DAILY_LIMIT))))
+            )
             
-            if self.daily_trade_counts.get(acc_name, 0) < acc_daily_limit:
+            strat_counts = self.daily_trade_counts.setdefault(source, {})
+            if strat_counts.get(acc_name, 0) < acc_daily_limit:
                 all_limited = False
                 break
         
         if all_limited:
-            self.logger.warning(f"[{self.name}] [SKIP] Signal ignored. All accounts have reached daily limit.")
+            self.logger.warning(f"[{self.name}] [SKIP] Signal ignored. All accounts have reached daily limit for {source}.")
             return
 
         self.logger.info(f"[{self.name}] Executing {signal} from {source}...")
@@ -791,7 +821,7 @@ class InstrumentBot(threading.Thread):
                     self.logger.debug(f"[{self.name}] [SKIP] '{acc_name}' restricted. {stock_action} not in allowed_actions.")
                     continue
                     
-                # Check allowed_instruments
+            # Check allowed_instruments
                 allowed_instruments = acc_config.get('allowed_instruments')
                 if allowed_instruments is not None and self.name not in allowed_instruments:
                     self.logger.debug(f"[{self.name}] [SKIP] '{acc_name}' restricted. Not in allowed_instruments.")
@@ -799,8 +829,15 @@ class InstrumentBot(threading.Thread):
                     
                 # Check limit overrides
                 overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-                acc_max_active = overrides.get('max_active', acc_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))
-                acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', inst_config.get('daily_limit', self.DAILY_LIMIT)))
+                strat_config = self.get_strategy_instrument_config(source)
+                acc_max_active = overrides.get(
+                    'max_active_per_strategy',
+                    overrides.get('max_active', acc_config.get('max_active', strat_config.get('max_active_per_strategy', strat_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))))
+                )
+                acc_daily_limit = overrides.get(
+                    'daily_limit_per_strategy',
+                    overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit_per_strategy', strat_config.get('daily_limit', inst_config.get('daily_limit', self.DAILY_LIMIT)))))
+                )
                 
                 strat_counts = self.daily_trade_counts.setdefault(source, {})
                 if strat_counts.get(acc_name, 0) >= acc_daily_limit:
@@ -852,6 +889,9 @@ class InstrumentBot(threading.Thread):
             return
 
         if leg_mode == "SELL" or strat_mode in ("2", "OPTION_WRITING", "DIRECT_SELL"):
+            if self.df_spot is None or self.df_spot.empty:
+                self.logger.error(f"[{self.name}] [{source}] self.df_spot is empty/None! Cannot resolve spot price for option selling.")
+                return
             spot_price = float(self.df_spot['close'].iloc[-1])
             self._execute_option_selling(signal, spot_price, source)
             return
@@ -925,8 +965,15 @@ class InstrumentBot(threading.Thread):
                      continue
                      
                  overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-                 acc_max_active = overrides.get('max_active', acc_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))
-                 acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', inst_config.get('daily_limit', self.DAILY_LIMIT)))
+                 strat_config = self.get_strategy_instrument_config(source)
+                 acc_max_active = overrides.get(
+                     'max_active_per_strategy',
+                     overrides.get('max_active', acc_config.get('max_active', strat_config.get('max_active_per_strategy', strat_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))))
+                 )
+                 acc_daily_limit = overrides.get(
+                     'daily_limit_per_strategy',
+                     overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit_per_strategy', strat_config.get('daily_limit', inst_config.get('daily_limit', self.DAILY_LIMIT)))))
+                 )
                  
                  strat_counts = self.daily_trade_counts.setdefault(source, {})
                  if strat_counts.get(acc_name, 0) >= acc_daily_limit:
@@ -1100,7 +1147,14 @@ class InstrumentBot(threading.Thread):
                                 
                                 # Clear active position from state
                                 with self.state.lock:
-                                    self.state.positions.pop(sec_id, None)
+                                    keys_to_remove = [
+                                        k for k, p in self.state.positions.items()
+                                        if str(p.get('security_id')) == str(sec_id)
+                                        and p.get('account') == acc_name
+                                        and p.get('strategy') == source
+                                    ]
+                                    for k in keys_to_remove:
+                                        self.state.positions.pop(k, None)
                                 self.state.save_state()
                                 
                                 # Update State
@@ -1318,8 +1372,9 @@ class InstrumentBot(threading.Thread):
                     continue
 
                 sym = f"{prefix}-{leg['expiry']}-{leg['strike']}-{leg_opt_type}"
+                pos_key = self._make_position_key(acc_name, "Strategy_20", leg["security_id"])
                 with self.state.lock:
-                    self.state.positions[str(leg["security_id"])] = {
+                    self.state.positions[pos_key] = {
                         'security_id': str(leg["security_id"]),
                         'symbol': sym,
                         'instrument': self.name,
@@ -1375,8 +1430,9 @@ class InstrumentBot(threading.Thread):
 
                     if resp and order_status_val != 'REJECTED':
                         sym = f"{prefix}-{leg['expiry']}-{leg['strike']}-{leg_opt_type}"
+                        pos_key = self._make_position_key(acc_name, "Strategy_20", leg["security_id"])
                         with self.state.lock:
-                            self.state.positions[str(leg["security_id"])] = {
+                            self.state.positions[pos_key] = {
                                 'security_id': str(leg["security_id"]),
                                 'symbol': sym,
                                 'instrument': self.name,
@@ -1437,30 +1493,23 @@ class InstrumentBot(threading.Thread):
                 continue
                 
             overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-            acc_max_active = overrides.get('max_active', acc_config.get('max_active', self.MAX_ACTIVE))
-            acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', self.DAILY_LIMIT))
+            strat_config = self.get_strategy_instrument_config(source)
+            acc_max_active = overrides.get(
+                'max_active_per_strategy',
+                overrides.get('max_active', acc_config.get('max_active', strat_config.get('max_active_per_strategy', strat_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))))
+            )
+            acc_daily_limit = overrides.get(
+                'daily_limit_per_strategy',
+                overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit_per_strategy', strat_config.get('daily_limit', self.DAILY_LIMIT)))))
             
-            if self.daily_trade_counts.get(acc_name, 0) >= acc_daily_limit:
-                self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached.")
+            strat_counts = self.daily_trade_counts.setdefault(source, {})
+            if strat_counts.get(acc_name, 0) >= acc_daily_limit:
+                self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached for {source}.")
                 continue
                 
             try:
-                pos_list = acc_api.get_positions()
-                
-                ce_count = 0
-                pe_count = 0
-                prefix = self.config.INSTRUMENTS[self.name]['fno_prefix']
-                for pos in pos_list:
-                    qty = safe_int(pos.get('netQty', 0))
-                    if qty != 0:
-                        sym = pos.get('tradingSymbol', '').upper()
-                        if sym.startswith(prefix.upper()):
-                            if sym.endswith('CE'):
-                                ce_count += 1
-                            elif sym.endswith('PE'):
-                                pe_count += 1
-                            else:
-                                ce_count += 1
+                ce_count = self._count_my_active_positions(None, "CE", strategy_name=source, account_name=acc_name)
+                pe_count = self._count_my_active_positions(None, "PE", strategy_name=source, account_name=acc_name)
                 
                 # CE and PE limits are tracked independently
                 is_eligible = True
@@ -1545,7 +1594,8 @@ class InstrumentBot(threading.Thread):
                     
         # 4. Update trade counts and cooldowns
         for acc in traded_accounts:
-            self.daily_trade_counts[acc] = self.daily_trade_counts.get(acc, 0) + 1
+            strat_counts = self.daily_trade_counts.setdefault(source, {})
+            strat_counts[acc] = strat_counts.get(acc, 0) + 1
             
         if traded_accounts:
             self.logger.info(f"[{self.name}] Trade Counts Updated: {self.daily_trade_counts}")
@@ -1567,12 +1617,21 @@ class InstrumentBot(threading.Thread):
                         if account_name and p.get('account') != account_name:
                             continue
                         p_leg = p.get('leg')
+                        if not p_leg:
+                            sym = p.get('symbol', '').upper()
+                            if sym.endswith('CE'):
+                                p_leg = 'CE'
+                            elif sym.endswith('PE'):
+                                p_leg = 'PE'
                         if p_leg == 'CE':
                             ce_count += 1
                         elif p_leg == 'PE':
                             pe_count += 1
                         elif p_leg == 'STOCK':
                             stock_count += 1
+                        else:
+                            ce_count += 1
+                            pe_count += 1
             if leg_type == "CE":
                 return ce_count
             elif leg_type == "PE":
@@ -1628,7 +1687,7 @@ class InstrumentBot(threading.Thread):
             if delta is None: delta = self.config.OPTION_DELTA
             delta = abs(delta)
             
-            inst_config = self.config.INSTRUMENTS[self.name]
+            inst_config = self.get_strategy_instrument_config(source)
             
             # --- Get LTP First ---
             execution_mode = inst_config.get('execution_mode', 'OPTION')
@@ -1949,11 +2008,18 @@ class InstrumentBot(threading.Thread):
 
                 # --- LIMIT OVERRIDES ---
                 overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-                acc_max_active = overrides.get('max_active', acc_config.get('max_active', self.MAX_ACTIVE))
-                acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', self.DAILY_LIMIT))
+                strat_config = self.get_strategy_instrument_config(source)
+                acc_max_active = overrides.get(
+                    'max_active_per_strategy',
+                    overrides.get('max_active', acc_config.get('max_active', strat_config.get('max_active_per_strategy', strat_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))))
+                )
+                acc_daily_limit = overrides.get(
+                    'daily_limit_per_strategy',
+                    overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit_per_strategy', strat_config.get('daily_limit', self.DAILY_LIMIT)))))
                 
-                if self.daily_trade_counts.get(acc_name, 0) >= acc_daily_limit:
-                    self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached.")
+                strat_counts = self.daily_trade_counts.setdefault(source, {})
+                if strat_counts.get(acc_name, 0) >= acc_daily_limit:
+                    self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached for {source}.")
                     continue
                 
                 # --- PER-ACCOUNT SAFETY CHECK ---
@@ -2046,7 +2112,7 @@ class InstrumentBot(threading.Thread):
                                 success_accounts.add(acc_name)
                                 item_total_qty += dispatch['acc_qty']
                                 item_success = True
-                                order_id = resp.get('orderId', 'unknown')
+                                order_id = str(resp.get('orderId') or (resp.get('data', {}).get('orderId') if isinstance(resp.get('data'), dict) else 'unknown'))
                                 
                                 self.state.add_order(order_id, {
                                     'order_id': order_id, 'account': acc_name, 'instrument': self.name,
@@ -2068,8 +2134,9 @@ class InstrumentBot(threading.Thread):
 
                                 # For SWING exit mode, track the position in state
                                 if local_exit_monitoring:
+                                    pos_key = self._make_position_key(acc_name, clean_source, sec_id)
                                     with self.state.lock:
-                                        self.state.positions[str(sec_id)] = {
+                                        self.state.positions[pos_key] = {
                                             'security_id': str(sec_id),
                                             'symbol': item.get('symbol', sec_id),
                                             'instrument': self.name,
@@ -2196,7 +2263,7 @@ class InstrumentBot(threading.Thread):
                 # Filter to positions of this instrument that have exit_mode == "SWING" or "SWING_CONTRACT"
                 with self.state.lock:
                     swing_positions = {
-                        sec_id: pos for sec_id, pos in self.state.positions.items()
+                        pos_key: pos for pos_key, pos in self.state.positions.items()
                         if pos.get('instrument') == self.name
                     }
                 
@@ -2223,19 +2290,20 @@ class InstrumentBot(threading.Thread):
                                 open_broker_positions[str(pos.get('securityId'))] = pos
                         
                         # Check each swing position
-                        for sec_id, position in list(swing_positions.items()):
+                        for pos_key, position in list(swing_positions.items()):
                             if position.get('account') != acc_name:
                                 continue
                                 
+                            sec_id = str(position.get('security_id', ''))
                             if sec_id not in open_broker_positions:
                                 # Position already closed on broker or not open yet. Clean up local state if created > 2 mins ago to avoid race conditions on entry
                                 created_str = position.get('created_at', position.get('timestamp'))
                                 if created_str:
                                     created_dt = datetime.fromisoformat(created_str)
                                     if (datetime.now(self.config.TIMEZONE) - created_dt).total_seconds() > 120:
-                                        self.logger.info(f"[{self.name}] Cleaning up stale local position state for {sec_id}")
+                                        self.logger.info(f"[{self.name}] Cleaning up stale local position state for {pos_key} ({sec_id})")
                                         with self.state.lock:
-                                            self.state.positions.pop(sec_id, None)
+                                            self.state.positions.pop(pos_key, None)
                                         self.state.save_state()
                                 continue
                                 
@@ -2275,7 +2343,7 @@ class InstrumentBot(threading.Thread):
                                 if resp:
                                     self.logger.warning(f"[{self.name}] [EOD SQUAREOFF] Position closed successfully: {resp}")
                                     with self.state.lock:
-                                        self.state.positions.pop(sec_id, None)
+                                        self.state.positions.pop(pos_key, None)
                                     self.state.save_state()
                                     
                                     if self.alert_manager:
@@ -2294,10 +2362,12 @@ class InstrumentBot(threading.Thread):
                                 opt_seg = position.get('exchange_segment', 'NSE_FNO')
                                 contract_ltp = 0.0
                                 try:
-                                    resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={opt_seg: [int(sec_id)]})
-                                    if resp:
-                                        d = resp.get('data', {}).get(opt_seg, {}).get(str(sec_id), {})
-                                        contract_ltp = float(d.get('last_price', 0) or d.get('ltp', 0))
+                                    sec_id_lookup = int(sec_id) if str(sec_id).isdigit() else sec_id
+                                    resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={opt_seg: [sec_id_lookup]})
+                                    if resp and isinstance(resp.get('data'), dict):
+                                        seg_data = resp['data'].get(opt_seg, {})
+                                        d = seg_data.get(str(sec_id), {}) or seg_data.get(sec_id_lookup, {}) if isinstance(seg_data, dict) else {}
+                                        contract_ltp = float(d.get('last_price', 0) or d.get('ltp', 0) or d.get('close', 0))
                                 except Exception as e:
                                     self.logger.error(f"[{self.name}] Error fetching Contract LTP in monitor for {sec_id}: {e}")
                                 
@@ -2485,7 +2555,7 @@ class InstrumentBot(threading.Thread):
                                 if resp:
                                     self.logger.warning(f"[{self.name}] Position closed successfully: {resp}")
                                     with self.state.lock:
-                                        self.state.positions.pop(sec_id, None)
+                                        self.state.positions.pop(pos_key, None)
                                     self.state.save_state()
                                     
                                     if self.alert_manager:
@@ -2573,14 +2643,19 @@ class InstrumentBot(threading.Thread):
             # Check Max Active Limit for this account
             active_count = self._count_my_active_positions(None, strategy_name=source, account_name=acc_name)
             overrides = acc_config.get('instrument_overrides', {}).get(self.name, {})
-            acc_max_active = overrides.get('max_active', acc_config.get('max_active', strat_config.get('max_active', self.MAX_ACTIVE)))
+            acc_max_active = overrides.get(
+                'max_active_per_strategy',
+                overrides.get('max_active', acc_config.get('max_active', strat_config.get('max_active_per_strategy', strat_config.get('max_active', inst_config.get('max_active', self.MAX_ACTIVE)))))
+            )
             if active_count >= acc_max_active:
                 self.logger.warning(f"[{self.name}] [{source}] [SKIP] Account '{acc_name}' has reached Max Active {source} trades ({active_count}/{acc_max_active}).")
                 continue
                 
             # Check Daily Limit for this account
             strat_counts = self.daily_trade_counts.setdefault(source, {})
-            acc_daily_limit = overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit', self.DAILY_LIMIT)))
+            acc_daily_limit = overrides.get(
+                'daily_limit_per_strategy',
+                overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit_per_strategy', strat_config.get('daily_limit', self.DAILY_LIMIT)))))
             if strat_counts.get(acc_name, 0) >= acc_daily_limit:
                 self.logger.warning(f"[{self.name}] [{source}] [SKIP] Account '{acc_name}' has reached Daily Limit for {source} ({strat_counts.get(acc_name, 0)}/{acc_daily_limit}).")
                 continue
@@ -2601,23 +2676,21 @@ class InstrumentBot(threading.Thread):
             
             order_status_val = None
             order_id = None
-            if resp and resp.get('status') == 'success':
-                data = resp.get('data', {})
-                if isinstance(data, dict):
-                    order_status_val = data.get('orderStatus')
-                    order_id = data.get('orderId')
+            if resp:
+                order_id = str(resp.get('orderId') or (resp.get('data', {}).get('orderId') if isinstance(resp.get('data'), dict) else ''))
+                order_status_val = str(resp.get('orderStatus') or (resp.get('data', {}).get('orderStatus') if isinstance(resp.get('data'), dict) else ''))
 
             if resp and order_status_val != 'REJECTED':
                 # BUG-C2 FIX: MARKET orders return price=0.0 at submission time.
                 # Poll order status to get the actual fill price before computing SL.
                 fill_px = 0.0
                 if order_id:
-                    self.logger.info(f"[{self.name}] [{source}] Polling fill price for order {order_id}...")
+                    self.logger.info(f"[{self.name}] [{source}] Polling fill price for order {order_id} on '{acc_name}'...")
                     for attempt in range(10):  # Poll up to 5 seconds
                         time.sleep(0.5)
                         try:
-                            status_resp = self.data_api._make_request(
-                                self.data_api.dhan.get_order_by_id, order_id=order_id
+                            status_resp = acc_api._make_request(
+                                acc_api.dhan.get_order_by_id, order_id=order_id
                             )
                             if status_resp:
                                 if isinstance(status_resp, dict) and status_resp.get('status') == 'success':
@@ -2666,10 +2739,14 @@ class InstrumentBot(threading.Thread):
                 sl_price = round(fill_px * (1.0 + leg_sl_pct), 2) if fill_px > 0 else 0.0
                 self.logger.info(f"[{self.name}] [{source}] Entry=₹{fill_px:.2f}, SL=₹{sl_price:.2f} ({leg_sl_pct*100:.0f}%)")
                 
+                pos_key = self._make_position_key(acc_name, source, sec_id)
                 with self.state.lock:
-                    self.state.positions[str(sec_id)] = {
+                    self.state.positions[pos_key] = {
+                        "security_id": str(sec_id),
+                        "instrument": self.name,
                         "strategy": source,
                         "account": acc_name,
+                        "leg": action_type,
                         "qty": order_qty,
                         "entry_price": fill_px,
                         "sl_price": sl_price,
@@ -2731,14 +2808,19 @@ class InstrumentBot(threading.Thread):
                 effective_max_loss_pnl = max_loss_pnl_per_lot * pos_lots
                 
                 opt_segment = pos.get('exchange_segment', 'NSE_FNO')
-                ltp_resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={opt_segment: [int(sec_id)]})
+                sec_id_lookup = int(sec_id) if str(sec_id).isdigit() else sec_id
+                ltp_resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={opt_segment: [sec_id_lookup]})
                 ltp = 0.0
-                if ltp_resp and 'data' in ltp_resp:
+                if ltp_resp and isinstance(ltp_resp.get('data'), dict):
                     try:
                         d = ltp_resp['data']
-                        if opt_segment in d: d = d[opt_segment]
-                        if str(sec_id) in d: d = d[str(sec_id)]
-                        ltp = float(d.get('last_price', 0) or d.get('ltp', 0))
+                        if opt_segment in d and isinstance(d[opt_segment], dict):
+                            d = d[opt_segment]
+                        if str(sec_id) in d:
+                            d = d[str(sec_id)]
+                        elif sec_id_lookup in d:
+                            d = d[sec_id_lookup]
+                        ltp = float(d.get('last_price', 0) or d.get('ltp', 0) or d.get('close', 0))
                     except Exception:
                         pass
                         
@@ -2776,8 +2858,14 @@ class InstrumentBot(threading.Thread):
                         price=0.0
                     )
                     with self.state.lock:
-                        if sec_id in self.state.positions:
-                            del self.state.positions[sec_id]
+                        keys_to_remove = [
+                            k for k, p in self.state.positions.items()
+                            if str(p.get('security_id')) == str(sec_id)
+                            and p.get('account') == acc_name
+                            and p.get('strategy') == "Strategy_20"
+                        ]
+                        for k in keys_to_remove:
+                            self.state.positions.pop(k, None)
                     self.state.save_state()
 
 

@@ -74,7 +74,7 @@ class Config:
         self.ENABLE_STRATEGY_18 = False
         self.ENABLE_STRATEGY_19 = False
         self.ENABLE_STRATEGY_20 = False
-
+        
         # Strategy 1
         self.SUPERTREND_LEN = 12
         self.SUPERTREND_MUL = 3
@@ -140,19 +140,22 @@ class Config:
         self.PROXY_URL = os.getenv("DHAN_PROXY_URL", "").strip()
 
         # Parse Strategy Enable Flags from .env
-        for i in range(1, 21):
+        for i in range(1, 23):
             env_val = os.getenv(f"ENABLE_STRATEGY_{i}", None)
             if env_val is not None:
                 setattr(self, f"ENABLE_STRATEGY_{i}", env_val.strip().upper() == "TRUE")
 
         self.active_strategy = "Strategy_3"
-        for i in range(1, 21):
+        for i in range(1, 23):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 self.active_strategy = f"Strategy_{i}"
                 break
         self.apply_strategy_defaults(self.active_strategy)
         self.apply_strategy_instrument_overrides(self.active_strategy)
-        if self.active_strategy == "Strategy_14":
+        # Ensure RUN_START is 09:15 if any active or enabled strategy requires early 09:15 AM entry
+        early_strategies = {"Strategy_14", "Strategy_20"}
+        enabled_any_early = any(getattr(self, f"ENABLE_STRATEGY_{s.split('_')[-1]}", False) for s in early_strategies)
+        if self.active_strategy in early_strategies or enabled_any_early:
             self.RUN_START = dt_time(9, 15)
 
     def apply_strategy_defaults(self, strategy_name: str):

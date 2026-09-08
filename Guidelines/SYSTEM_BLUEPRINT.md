@@ -37,8 +37,8 @@ nifty_options_aws_deployment/
 ├── strategies/                  # Modular Strategy Registry Directory
 │   ├── base.py                  # Abstract Base class BaseStrategy
 │   ├── registry.py              # Dynamic strategy registration decorator @register_strategy
-│   ├── config.py                # Configuration loader & defaults (range(1, 22))
-│   ├── strategy_1.py ... 21.py   # Standalone technical & quant strategy implementations
+│   ├── config.py                # Configuration loader & defaults (range(1, 23))
+│   ├── strategy_1.py ... 22.py  # Standalone technical & quant strategy implementations
 │   └── strategy_btst.py         # Buy Today Sell Tomorrow afternoon breakout strategy
 │
 └── trading_bot/                 # Live Execution Bot Package
@@ -84,7 +84,7 @@ nifty_options_aws_deployment/
 
 ## 4. Strategy Catalog & Registry Index
 
-All strategies inherit from `BaseStrategy` and register via `@register_strategy`. Dynamic strategy loops use **`range(1, 23)`** to include all 22 strategies.
+All strategies inherit from `BaseStrategy` and register via `@register_strategy`. Dynamic strategy loops use **`range(1, 23)`** to include all 22 numbered strategies + `Strategy_BTST`.
 
 | ID | Name | Core Concept | Timeframe | Execution Mode | Key Parameters / Exit Rules |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -107,10 +107,11 @@ All strategies inherit from `BaseStrategy` and register via `@register_strategy`
 | **Strategy_17** | Strategy17 | Multi-Timeframe Supertrend | 1m/5m/15m | OPTION/STOCK | Requires 1m, 5m, 15m Supertrends alignment |
 | **Strategy_18** | Strategy18 | 50 SMA Breakout | 5-Min | OPTION/STOCK | 50 SMA slope breakout after 09:45 AM |
 | **Strategy_19** | Strategy19 | Institutional Quant ML | 1-Min | OPTION/STOCK | XGBoost ML Classifier ($P_{\text{trend}} \ge 42\%$) |
-| **Strategy_20** | Strategy_20 | 15-Min Trend Option Writer | 15-Min / 1-Min | OPTION (SELL) | 09:30 AM EMA 9/21 check; 35% SL, ₹1500 target |
-| **Strategy_21** | Strategy_21 | Aroon HA Oscillator | 1-Min | OPTION/STOCK | Aroon on Heikin-Ashi high/low; 1.0x ATR stop |
-| **Strategy_22** | Strategy_22 | Modular EMA/SMMA OHLC4 Engine | 1-Min | OPTION/STOCK | EMA 18 / SMMA 18 OHLC4 Spread & Pullbacks |
+| **Strategy_20** | Strategy_20 | 15-Min Supertrend Option Writer | 15-Min / 1-Min | OPTION (SELL) | 1-Trade/Day; 15m Supertrend (10, 2.0); Target 45 pts, SL 20 pts, Breakeven 15 pts |
+| **Strategy_21** | Strategy21 | NIFTY Institutional Multi-Pivot Reversal | 5-Min | OPTION (BUY) | Dhan MTF Weekly CPR (#16) + Daily CPR (#15) + Cam L3/H3 + PDH/PDL; Rejection Wick $\ge 50\%$, 2.2R, Max 2 Trades/Day |
+| **Strategy_22** | Strategy22 | Triple Momentum Enhanced (TM-Pro) | 5-Min | OPTION (SELL) | 5m Triple EMA (8, 18, 30) + Supertrend 10/2.5 + ADX Momentum + Anti-Stretch |
 | **Strategy_BTST**| StrategyBTST| Buy Today Sell Tomorrow | Daily / 5-Min | OPTION/STOCK | 14:50 PM afternoon breakout for overnight gap |
+
 
 ---
 
@@ -130,7 +131,7 @@ When working in this codebase, AI agents MUST follow these instructions:
 1. **Consult `SYSTEM_BLUEPRINT.md` First:** Always check this file before doing broad grep or multi-file reading.
 2. **Plan Before Code Edits:** Write an explicit technical implementation plan detailing file changes before modifying code.
 3. **Use Range-Based File Reading:** Use `StartLine` and `EndLine` parameters in `view_file` to read only relevant code sections. Never read 3,000-line files in their entirety.
-4. **Preserve Codebase Integrity:** Maintain existing strategy registration decorators (`@register_strategy`), range loops (`range(1, 22)`), and dynamic override pathways.
+4. **Preserve Codebase Integrity:** Maintain existing strategy registration decorators (`@register_strategy`), range loops (`range(1, 21)`), and dynamic override pathways.
 5. **Verify Changes:** Run unit tests (`python -m unittest discover -s tests`) or fast backtests after modifying code.
 
 ---

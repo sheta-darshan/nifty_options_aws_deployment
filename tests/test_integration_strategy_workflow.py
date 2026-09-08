@@ -19,16 +19,17 @@ from strategies.base import BaseStrategy
 class TestStrategyRegistry(unittest.TestCase):
     """Verify the strategy registry discovers all expected strategies."""
 
-    def test_all_20_plus_btst_are_registered(self):
-        """Strategies 1..20 and BTST must all be registered."""
-        expected = {f"Strategy_{i}" for i in range(1, 21)} | {"Strategy_BTST"}
+    def test_all_22_plus_btst_are_registered(self):
+        """Strategies 1..22 and BTST must all be registered."""
+        expected = {f"Strategy_{i}" for i in range(1, 23)} | {"Strategy_BTST"}
         registered = set(STRATEGY_REGISTRY.keys())
         missing = expected - registered
         self.assertEqual(missing, set(), f"Missing strategies: {missing}")
 
     def test_registry_total_count(self):
-        """Total number of registered strategies should be 21+."""
-        self.assertGreaterEqual(len(STRATEGY_REGISTRY), 21)
+        """Total number of registered strategies should be exactly 23."""
+        self.assertEqual(len(STRATEGY_REGISTRY), 23)
+
 
     def test_get_strategy_returns_instance(self):
         """get_strategy should return an instance of BaseStrategy."""
@@ -65,26 +66,22 @@ class TestStrategy20Workflow(unittest.TestCase):
         self.assertIn("trend", result.columns)
 
     def test_strategy_signals_are_bounded(self):
-        """Signals must be in {-1, 0, +1}."""
-        df = make_spot_candles(rows=30)
+        """Signals must be in {-1, 0, 1}."""
+        df = make_spot_candles(rows=45)
         result = self.strategy.generate_signals(df)
         unique_signals = set(result["Signal"].unique())
         self.assertTrue(unique_signals.issubset({-1, 0, 1}))
 
-    def test_strategy_only_signals_at_entry_time(self):
-        """Strategy_20 should only emit signals at the configured entry_time minute."""
-        # Default entry_time is 09:30; built-in candle index starts at 09:15
-        df = make_spot_candles(rows=30)
-        # Force index to start at 09:30
-        df.index = pd.date_range("2026-07-08 09:30", periods=30, freq="1min")
-
+    def test_strategy_decycler_signals(self):
+        """Strategy_20 produces valid zero-lag Decycler DSP signals."""
+        df = make_spot_candles(rows=60)
         result = self.strategy.generate_signals(df)
-        # The only non-zero signal should occur at the first row (09:30:00)
+        self.assertIn("Signal", result.columns)
+        self.assertIn("option_action", result.columns)
         nonzero = result[result["Signal"] != 0]
-        if not nonzero.empty:
-            first_idx = nonzero.index[0]
-            self.assertEqual(first_idx.hour, 9)
-            self.assertEqual(first_idx.minute, 30)
+        for idx, row in nonzero.iterrows():
+            self.assertIn(row["Signal"], [-1, 1])
+            self.assertIn(row["option_action"], ["SELL_PE", "SELL_CE", "BUY_CE", "BUY_PE"])
 
 
 class TestRegimeFilterIntegration(unittest.TestCase):

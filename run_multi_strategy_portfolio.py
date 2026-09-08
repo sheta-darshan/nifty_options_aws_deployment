@@ -39,10 +39,11 @@ for s_id in strategy_ids:
     
     # Auto Leg Mode Routing
     if args.leg_mode == "AUTO":
-        if s_id in [14, 19]:
+        if s_id in [14, 19, 21]:
             config.LEG_MODE = "BUY"
         else:
             config.LEG_MODE = "BOTH"
+
     else:
         config.LEG_MODE = args.leg_mode
         

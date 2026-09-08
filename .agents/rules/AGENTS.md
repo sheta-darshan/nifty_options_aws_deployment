@@ -12,7 +12,7 @@ trigger: always_on
 
 Before proposing or making ANY source code changes:
 
-1. **Inspect `SYSTEM_BLUEPRINT.md` First:** Always read [SYSTEM_BLUEPRINT.md](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/SYSTEM_BLUEPRINT.md) before performing deep code research. It contains the single-source-of-truth index for architecture, strategy registry, and parameter schemas.
+1. **Inspect `SYSTEM_BLUEPRINT.md` & `AGENTS.md` First:** Always read [Guidelines/SYSTEM_BLUEPRINT.md](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/Guidelines/SYSTEM_BLUEPRINT.md) and [AGENTS.md](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/AGENTS.md) before performing deep code research. They contain the single-source-of-truth index for architecture, strategy registry, and parameter schemas.
 2. **Formulate a Plan:** Outline the technical design, affected files, and verification plan.
 3. **Obtain User Alignment:** Present the proposed plan clearly and await explicit confirmation unless executing minor debug actions requested directly by the user.
 
@@ -25,6 +25,7 @@ To maintain fast response times and prevent context window exhaustion:
 1. **Targeted File Inspection:**
    - NEVER read entire files over 300 lines using `view_file` without line limits.
    - ALWAYS specify `StartLine` and `EndLine` to read only the specific target function or class block.
+   - Use `grep_search` to locate exact functions/classes instead of broad file browsing.
 2. **Compact Logging:**
    - Never stream long terminal outputs (e.g. running 180-day backtests with verbose per-bar printing) directly into conversation history.
    - Redirect verbose command outputs to log files or scratch summary scripts.
@@ -42,7 +43,7 @@ AI agents MUST obey these non-negotiable repository rules:
    - ALWAYS run shell/Python commands using `..\venv\Scripts\python.exe` on Windows.
    - NEVER suggest or execute Docker commands or reliance on Docker containers.
 2. **Strategy Range Loop Rule:**
-   - All strategy registration loops, configuration registries, and backtest runner loops MUST use `range(1, 21)` (strategies 1 through 20).
+   - All strategy registration loops, configuration registries, and backtest runner loops MUST dynamically iterate across all registered strategies (`range(1, 21)`).
 3. **Database Driver Convention:**
    - `DATABASE_URL` uses `asyncpg` (async driver) for FastAPI.
    - `DB_SYNC_URL` uses `psycopg2` (sync driver) for Alembic migrations.

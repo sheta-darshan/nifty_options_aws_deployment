@@ -106,7 +106,7 @@ def main():
     # 2. Parse command line arguments
     parser = argparse.ArgumentParser(description="Dynamic Multi-Instrument Parity Backtesting Runner")
     parser.add_argument("symbols", nargs="*", help="Instruments to backtest (e.g., NIFTY BHEL). If omitted, reads enabled from instruments.json")
-    parser.add_argument("--strategy", "-s", type=int, choices=list(range(1, 24)), help="Strategy index to run (1-23). If omitted, uses active strategy from config/env")
+    parser.add_argument("--strategy", "-s", type=int, choices=list(range(1, 23)), help="Strategy index to run (1-22). If omitted, uses active strategy from config/env")
     parser.add_argument("--leg-mode", "-l", choices=["BUY", "SELL", "BOTH"], help="Option leg execution mode (BUY, SELL, BOTH)")
     parser.add_argument("--offline", "-o", action="store_true", help="Run backtest in offline mode using preloaded ATM option files")
     parser.add_argument("--days", "-d", type=int, default=30, help="Number of days of history to backtest (default: 30)")
@@ -150,6 +150,7 @@ def main():
         if getattr(config, f"ENABLE_STRATEGY_{i}", False):
             active_strat = f"Strategy_{i}"
             break
+
             
     print(f"[CONFIG] Active Strategy: {active_strat}")
     print(f"[CONFIG] Leg Execution Mode: {config.LEG_MODE}\n")
