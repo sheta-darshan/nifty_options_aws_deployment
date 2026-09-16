@@ -41,6 +41,7 @@ class AlertManager:
             # Select Emoji based on Header
             emoji = "🚨"
             if any(x in header for x in ["Trade", "Order", "EXEC"]): emoji = "💰"
+            elif any(x in header for x in ["Digest", "Report", "Summary", "PnL", "Risk"]): emoji = "📊"
             elif any(x in header for x in ["Start", "Initial", "Ready"]): emoji = "🟢"
             elif any(x in header for x in ["Stop", "Close", "SQ_OFF", "Shutdown"]): emoji = "🛑"
             

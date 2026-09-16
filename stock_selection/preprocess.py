@@ -24,6 +24,10 @@ DATA_DIR = os.path.join(BASE_DIR, "backtest_data")
 OUTPUT_DIR = os.path.join(BASE_DIR, "stock_selection", "data")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# Import centralized feature timing constants
+sys.path.append(os.path.join(BASE_DIR, "stock_selection"))
+from constants import get_last_30m_window, MIN_WINDOW_CANDLES
+
 def precompute_nifty_features():
     print("[NIFTY] Precomputing market index features from nifty_spot.csv...")
     nifty_path = os.path.join(DATA_DIR, "nifty_spot.csv")
@@ -51,17 +55,8 @@ def precompute_nifty_features():
         df_by_date = {d: grp for d, grp in df.groupby(df.index.date)}
         nifty_features = {}
         for d, day_df in df_by_date.items():
-            from datetime import date
-            if d >= date(2026, 8, 3):
-                last_30_df = day_df.between_time('14:45', '15:14')
-            else:
-                max_time = day_df.index.max().time() if not day_df.empty else None
-                if max_time and max_time >= dt_time(15, 25):
-                    last_30_df = day_df.between_time('15:00', '15:29')
-                else:
-                    last_30_df = day_df.between_time('14:45', '15:14')
-                
-            if len(last_30_df) < 25:
+            last_30_df = get_last_30m_window(day_df, d)
+            if len(last_30_df) < MIN_WINDOW_CANDLES:
                 continue
             ret_30m = (last_30_df['close'].iloc[-1] - last_30_df['open'].iloc[0]) / (last_30_df['open'].iloc[0] + 1e-8)
             rsi_val = last_30_df['rsi'].iloc[-1]
@@ -75,7 +70,7 @@ def precompute_nifty_features():
         print(f"[WARNING] Failed to precompute NIFTY features: {e}")
         return {}
 
-def process_single_stock(symbol, run_strategy_backtest=True, nifty_features=None):
+def process_single_stock(symbol, nifty_features=None):
     print(f"[PROCESS] Processing {symbol}...")
     spot_path = os.path.join(DATA_DIR, f"{symbol.lower()}_spot.csv")
     if not os.path.exists(spot_path):
@@ -101,10 +96,11 @@ def process_single_stock(symbol, run_strategy_backtest=True, nifty_features=None
         df = df[df.index.notna()].sort_index()
         df.index = pd.DatetimeIndex(df.index)
         
-        # Isolate regular market session
+        # Isolate regular market session and filter out zero/negative placeholder prices
         df = df.between_time('09:15', '15:30')
-        if df.empty:
-            return f"{symbol}: No regular session candles found."
+        df = df[(df['close'] > 0) & (df['open'] > 0) & (df['high'] > 0) & (df['low'] > 0)]
+        if df.empty or len(df) < 50:
+            return f"{symbol}: No valid regular session candles found."
 
         # 2. Pre-calculate technical indicators on the full dataset
         try:
@@ -123,26 +119,7 @@ def process_single_stock(symbol, run_strategy_backtest=True, nifty_features=None
         df.ffill(inplace=True)
         df.dropna(subset=['rsi', 'ema_diff', 'atr'], inplace=True)
 
-        # 3. Simulate strategy outcome if requested
-        profitable_dates = set()
-        if run_strategy_backtest and ENGINE_AVAILABLE:
-            try:
-                config = BacktestConfig()
-                # Run engine over the whole range
-                engine = SimulationEngine(config, instrument_name=symbol)
-                engine.inst_config["execution_mode"] = "STOCK"
-                engine.backtest_days = 1825  # Look back 5 years
-                engine.load_data()
-                trades_df = engine.run(write_to_csv=False)
-                if trades_df is not None and not trades_df.empty:
-                    trades_df['date'] = pd.to_datetime(trades_df['Entry_Time']).dt.date
-                    # Strategy Target Calibration: clean target hits
-                    target_trades = trades_df[trades_df['Exit_Reason'] == 'Target']
-                    profitable_dates = set(target_trades['date'].unique())
-            except Exception as e:
-                print(f"[WARNING] Strategy backtest failed for {symbol}: {e}")
-
-        # 4. Group by trading day and extract features + outcomes
+        # 3. Group by trading day and extract features + outcomes
         df_by_date = {d: grp for d, grp in df.groupby(df.index.date)}
         dates = sorted(list(df_by_date.keys()))
         
@@ -175,18 +152,9 @@ def process_single_stock(symbol, run_strategy_backtest=True, nifty_features=None
             day_df = df_by_date[d]
             next_day_df = df_by_date[dates[idx + 1]]
 
-            # Extract the last 30 minutes of day T dynamically
-            from datetime import date
-            if d >= date(2026, 8, 3):
-                last_30_df = day_df.between_time('14:45', '15:14')
-            else:
-                max_time = day_df.index.max().time() if not day_df.empty else None
-                if max_time and max_time >= dt_time(15, 25):
-                    last_30_df = day_df.between_time('15:00', '15:29')
-                else:
-                    last_30_df = day_df.between_time('14:45', '15:14')
-                
-            if len(last_30_df) < 25:
+            # Extract the last 30 minutes of day T dynamically using centralized timing helper
+            last_30_df = get_last_30m_window(day_df, d)
+            if len(last_30_df) < MIN_WINDOW_CANDLES:
                 continue  # Skip days with incomplete close data
 
             # Target variables on T+1
@@ -202,7 +170,8 @@ def process_single_stock(symbol, run_strategy_backtest=True, nifty_features=None
             # Adaptive volatility: next day high-to-low range > 1.3 * current daily ATR
             current_atr = daily_atr_dict[d]
             target_volatility = 1 if (next_high - next_low) > (1.3 * current_atr) else 0
-            target_strategy = 1 if dates[idx + 1] in profitable_dates else 0
+            # Strategy Target: Next-day intraday short fade profitability (Open T+1 - Close T+1 > +1.0%)
+            target_strategy = 1 if ((next_open - next_close) / (next_open + 1e-8)) > 0.010 else 0
 
             # Last 30-min price slices
             l30_closes = last_30_df['close'].values
@@ -356,37 +325,48 @@ def process_wrapper(args):
 def main():
     parser = argparse.ArgumentParser(description="Multi-Stock Preprocessing and Feature Extraction")
     parser.add_argument("--symbols", nargs="*", help="List of stock symbols. If omitted, parses all files in backtest_data/ matching instruments_config.csv")
-    parser.add_argument("--no-strategy", action="store_true", help="Bypass running target_strategy backtesting to speed up extraction")
+    parser.add_argument("--all", action="store_true", help="Process all available stock spot CSVs in backtest_data/")
+    parser.add_argument("--all-liquid", action="store_true", help="Process all liquid qualified stocks (>=1yr history, >=25L turnover)")
     args = parser.parse_args()
 
-    # Load targets from config
-    config_path = os.path.join(BASE_DIR, "instruments_config.csv")
-    if not os.path.exists(config_path):
-        print(f"[ERROR] Could not find instruments_config.csv at: {config_path}")
-        return
-
-    all_symbols = []
-    with open(config_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            sym = row["Instrument"].strip()
-            if sym:
-                all_symbols.append(sym)
-
-    # Filter to requested symbols or symbols with available spot files
+    # Load targets from config, arguments, or directory scan
+    audit_csv = os.path.join(BASE_DIR, "scratch", "universe_audit_results.csv")
     target_symbols = []
+    
     if args.symbols:
-        requested = [s.upper() for s in args.symbols]
-        for sym in requested:
-            # Always process explicitly requested symbols (triggers download fallback if missing)
-            target_symbols.append(sym)
+        target_symbols = [s.upper() for s in args.symbols]
+    elif args.all:
+        import glob
+        spot_files = glob.glob(os.path.join(DATA_DIR, "*_spot.csv"))
+        for sp in spot_files:
+            sym = os.path.basename(sp).replace("_spot.csv", "").upper()
+            if sym not in ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"]:
+                target_symbols.append(sym)
+        target_symbols = sorted(target_symbols)
+    elif args.all_liquid and os.path.exists(audit_csv):
+        df_audit = pd.read_csv(audit_csv)
+        valid_audit = df_audit[
+            (df_audit["years_span"] >= 1.0) &
+            (df_audit["avg_turnover"] >= 2500000) &
+            (~df_audit["symbol"].isin(["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"]))
+        ]
+        target_symbols = sorted(list(valid_audit["symbol"].unique()))
     else:
+        config_path = os.path.join(BASE_DIR, "instruments_config.csv")
+        all_symbols = []
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    sym = row.get("Instrument", "").strip()
+                    if sym:
+                        all_symbols.append(sym)
         for sym in all_symbols:
             spot_path = os.path.join(DATA_DIR, f"{sym.lower()}_spot.csv")
             if os.path.exists(spot_path):
                 target_symbols.append(sym)
 
-    print(f"[INFO] Found {len(target_symbols)} symbols ready to preprocess: {target_symbols}")
+    print(f"[INFO] Found {len(target_symbols)} symbols ready to preprocess.")
 
     if not target_symbols:
         print("[ERROR] No target symbols found. Check backtest_data/ for stock spot CSVs.")
@@ -399,7 +379,7 @@ def main():
     cores = min(cpu_count(), len(target_symbols))
     print(f"[INFO] Launching extraction with {cores} parallel processes...")
 
-    tasks = [(sym, not args.no_strategy, nifty_features_dict) for sym in target_symbols]
+    tasks = [(sym, nifty_features_dict) for sym in target_symbols]
     
     with Pool(processes=cores) as pool:
         results = pool.map(process_wrapper, tasks)

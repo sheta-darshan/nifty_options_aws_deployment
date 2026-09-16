@@ -6,6 +6,9 @@ import json
 import warnings
 import pandas as pd
 import numpy as np
+from datetime import datetime
+from scipy.stats import spearmanr
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from multiprocessing import Pool, cpu_count
 
 # Silence XGBoost use_label_encoder warnings
@@ -18,6 +21,35 @@ sys.path.append(BASE_DIR)
 FEATURE_DIR = os.path.join(BASE_DIR, "stock_selection", "data")
 MODEL_DIR = os.path.join(BASE_DIR, "stock_selection", "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+def optimize_decision_threshold(y_val, probs_val, target_name):
+    """
+    Optimizes the decision threshold:
+    - For balanced targets ('direction'): Uses Balanced Macro F1 across [0.40, 0.60] to prevent degenerate 100% positive predictions.
+    - For imbalanced targets ('volatility', 'gap', 'strategy'): Uses Positive-class F1 across [0.05, 0.80].
+    """
+    from sklearn.metrics import f1_score
+    best_t = 0.50
+    best_score = 0.0
+    
+    if target_name == "direction":
+        for t in np.arange(0.40, 0.61, 0.01):
+            preds = (probs_val >= t).astype(int)
+            f1_pos = f1_score(y_val, preds, zero_division=0)
+            f1_neg = f1_score(1 - y_val, 1 - preds, zero_division=0)
+            macro_f1 = (f1_pos + f1_neg) / 2.0
+            if macro_f1 > best_score:
+                best_score = macro_f1
+                best_t = t
+    else:
+        for t in np.arange(0.05, 0.81, 0.01):
+            preds = (probs_val >= t).astype(int)
+            val_f1 = f1_score(y_val, preds, zero_division=0)
+            if val_f1 > best_score:
+                best_score = val_f1
+                best_t = t
+                
+    return round(float(best_t), 2), best_score
 
 def train_single_stock(filepath, target_name):
     symbol = os.path.basename(filepath).replace("_features.csv", "").upper()
@@ -58,12 +90,13 @@ def train_single_stock(filepath, target_name):
         fold_xgb_thresholds = []
         
         for fold, (train_index, test_index) in enumerate(tscv.split(X_all)):
-            # Further split train_index into train and validation (85% train, 15% validation)
+            # Further split train_index into train and validation with 5-day purged embargo gap
             fold_size = len(train_index)
             val_split = int(fold_size * 0.85)
+            embargo = 5
             
-            idx_train = train_index[:val_split]
-            idx_val = train_index[val_split:]
+            idx_train = train_index[:max(1, val_split - embargo)]
+            idx_val = train_index[val_split:max(val_split + 1, fold_size - embargo)]
             idx_test = test_index
             
             X_tr_raw, y_tr = X_all.iloc[idx_train], y_all.iloc[idx_train]
@@ -92,14 +125,7 @@ def train_single_stock(filepath, target_name):
             rf.fit(X_tr, y_tr)
             
             rf_val_probs = rf.predict_proba(X_va)[:, 1]
-            rf_best_t = 0.5
-            rf_best_val_f1 = 0.0
-            for t in np.arange(0.05, 0.81, 0.01):
-                val_preds = (rf_val_probs >= t).astype(int)
-                val_f1 = f1_score(y_va, val_preds, zero_division=0)
-                if val_f1 > rf_best_val_f1:
-                    rf_best_val_f1 = val_f1
-                    rf_best_t = t
+            rf_best_t, rf_best_val_f1 = optimize_decision_threshold(y_va, rf_val_probs, target_name)
                     
             rf_test_probs = rf.predict_proba(X_te)[:, 1]
             rf_test_preds = (rf_test_probs >= rf_best_t).astype(int)
@@ -130,14 +156,7 @@ def train_single_stock(filepath, target_name):
             xgb.fit(X_tr, y_tr)
             
             xgb_val_probs = xgb.predict_proba(X_va)[:, 1]
-            xgb_best_t = 0.5
-            xgb_best_val_f1 = 0.0
-            for t in np.arange(0.05, 0.81, 0.01):
-                val_preds = (xgb_val_probs >= t).astype(int)
-                val_f1 = f1_score(y_va, val_preds, zero_division=0)
-                if val_f1 > xgb_best_val_f1:
-                    xgb_best_val_f1 = val_f1
-                    xgb_best_t = t
+            xgb_best_t, xgb_best_val_f1 = optimize_decision_threshold(y_va, xgb_val_probs, target_name)
                     
             xgb_test_probs = xgb.predict_proba(X_te)[:, 1]
             xgb_test_preds = (xgb_test_probs >= xgb_best_t).astype(int)
@@ -196,15 +215,7 @@ def train_single_stock(filepath, target_name):
             final_model = RandomForestClassifier(n_estimators=100, max_depth=5, class_weight='balanced', random_state=42)
             final_model.fit(X_final_tr, y_final_tr)
             final_val_probs = final_model.predict_proba(X_final_va)[:, 1]
-            
-            final_opt_threshold = 0.5
-            final_best_val_f1 = 0.0
-            for t in np.arange(0.05, 0.81, 0.01):
-                val_preds = (final_val_probs >= t).astype(int)
-                val_f1 = f1_score(y_final_va, val_preds, zero_division=0)
-                if val_f1 > final_best_val_f1:
-                    final_best_val_f1 = val_f1
-                    final_opt_threshold = t
+            final_opt_threshold, final_best_val_f1 = optimize_decision_threshold(y_final_va, final_val_probs, target_name)
             
             # Retrain model on 100% of historical data
             final_model = RandomForestClassifier(n_estimators=100, max_depth=5, class_weight='balanced', random_state=42)
@@ -225,15 +236,7 @@ def train_single_stock(filepath, target_name):
             )
             final_model.fit(X_final_tr, y_final_tr)
             final_val_probs = final_model.predict_proba(X_final_va)[:, 1]
-            
-            final_opt_threshold = 0.5
-            final_best_val_f1 = 0.0
-            for t in np.arange(0.05, 0.81, 0.01):
-                val_preds = (final_val_probs >= t).astype(int)
-                val_f1 = f1_score(y_final_va, val_preds, zero_division=0)
-                if val_f1 > final_best_val_f1:
-                    final_best_val_f1 = val_f1
-                    final_opt_threshold = t
+            final_opt_threshold, final_best_val_f1 = optimize_decision_threshold(y_final_va, final_val_probs, target_name)
             
             # Retrain model on 100% of historical data
             neg_all = np.sum(y_all == 0)
@@ -264,17 +267,19 @@ def train_single_stock(filepath, target_name):
         result = {
             "status": "trained",
             "best_model": best_model_name,
+            "validation_methodology": "5-fold walk-forward cross-validation with 5-day purged embargo",
             "metrics": {
-                "accuracy": round(float(avg_test_acc), 3),
-                "precision": round(float(avg_test_prec), 3),
-                "recall": round(float(avg_test_rec), 3),
-                "f1": round(float(avg_test_f1), 3)
+                "oos_accuracy": round(float(avg_test_acc), 4),
+                "oos_precision": round(float(avg_test_prec), 4),
+                "oos_recall": round(float(avg_test_rec), 4),
+                "oos_f1_score": round(float(avg_test_f1), 4)
             },
             "opt_threshold": round(float(final_opt_threshold), 3),
             "total_days": len(df),
             "num_folds": 5,
-            "positive_class_ratio": round(float(y_all.mean()), 3),
-            "selected_features": final_selected_features
+            "positive_class_ratio": round(float(y_all.mean()), 4),
+            "selected_features": final_selected_features,
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         return symbol, result
         
@@ -343,8 +348,14 @@ def train_pooled_model(target_files, target_name):
         
         train_dates_list = sorted(list(train_dates))
         val_split = int(len(train_dates_list) * 0.85)
-        tr_dates = set(train_dates_list[:val_split])
-        va_dates = set(train_dates_list[val_split:])
+        embargo_days = 5
+        
+        # Apply 5-day purged embargo between train -> val and val -> test
+        tr_dates_end = max(1, val_split - embargo_days)
+        va_dates_end = max(val_split + 1, len(train_dates_list) - embargo_days)
+        
+        tr_dates = set(train_dates_list[:tr_dates_end])
+        va_dates = set(train_dates_list[val_split:va_dates_end])
         
         train_mask = df_stacked['date'].isin(tr_dates)
         val_mask = df_stacked['date'].isin(va_dates)
@@ -380,22 +391,42 @@ def train_pooled_model(target_files, target_name):
         rf.fit(X_tr, y_tr)
         
         rf_val_probs = rf.predict_proba(X_va)[:, 1]
-        rf_best_t = 0.5
-        rf_best_val_f1 = 0.0
-        for t in np.arange(0.05, 0.81, 0.01):
-            val_preds = (rf_val_probs >= t).astype(int)
-            val_f1 = f1_score(y_va, val_preds, zero_division=0)
-            if val_f1 > rf_best_val_f1:
-                rf_best_val_f1 = val_f1
-                rf_best_t = t
+        rf_best_t, rf_best_val_f1 = optimize_decision_threshold(y_va, rf_val_probs, target_name)
                 
+        # RF Test Evaluation
         rf_test_probs = rf.predict_proba(X_te)[:, 1]
         rf_test_preds = (rf_test_probs >= rf_best_t).astype(int)
+        
+        # Calculate fold Daily IC and Top-3 Hit Rate
+        df_te_eval = df_stacked.loc[test_mask, ['date']].copy()
+        df_te_eval['y'] = y_te.values
+        df_te_eval['prob_rf'] = rf_test_probs
+        
+        daily_ics_rf, top3_hits_rf = [], []
+        for d, grp in df_te_eval.groupby('date'):
+            if len(grp) >= 10:
+                if grp['y'].nunique() > 1 and grp['prob_rf'].nunique() > 1:
+                    ic, _ = spearmanr(grp['prob_rf'], grp['y'])
+                    if not np.isnan(ic):
+                        daily_ics_rf.append(ic)
+                top3 = grp.sort_values('prob_rf', ascending=False).head(3)
+                top3_hits_rf.append(top3['y'].mean())
+                
+        mean_ic_rf = np.mean(daily_ics_rf) if daily_ics_rf else 0.0
+        std_ic_rf = np.std(daily_ics_rf) if daily_ics_rf else 1.0
+        t_stat_rf = (mean_ic_rf / (std_ic_rf + 1e-8)) * np.sqrt(len(daily_ics_rf))
+        top3_hit_rf = np.mean(top3_hits_rf) * 100 if top3_hits_rf else 0.0
+
         rf_test_metrics = {
             "accuracy": accuracy_score(y_te, rf_test_preds),
             "precision": precision_score(y_te, rf_test_preds, zero_division=0),
             "recall": recall_score(y_te, rf_test_preds, zero_division=0),
-            "f1": f1_score(y_te, rf_test_preds, zero_division=0)
+            "f1": f1_score(y_te, rf_test_preds, zero_division=0),
+            "auc": roc_auc_score(y_te, rf_test_probs) if len(np.unique(y_te)) > 1 else 0.5,
+            "naive_baseline": max(y_te.mean(), 1 - y_te.mean()),
+            "mean_daily_ic": mean_ic_rf,
+            "ic_t_stat": t_stat_rf,
+            "top3_hit_rate": top3_hit_rf
         }
         fold_rf_thresholds.append(rf_best_t)
         fold_rf_val_f1s.append(rf_best_val_f1)
@@ -417,22 +448,37 @@ def train_pooled_model(target_files, target_name):
         xgb.fit(X_tr, y_tr)
         
         xgb_val_probs = xgb.predict_proba(X_va)[:, 1]
-        xgb_best_t = 0.5
-        xgb_best_val_f1 = 0.0
-        for t in np.arange(0.05, 0.81, 0.01):
-            val_preds = (xgb_val_probs >= t).astype(int)
-            val_f1 = f1_score(y_va, val_preds, zero_division=0)
-            if val_f1 > xgb_best_val_f1:
-                xgb_best_val_f1 = val_f1
-                xgb_best_t = t
+        xgb_best_t, xgb_best_val_f1 = optimize_decision_threshold(y_va, xgb_val_probs, target_name)
                 
         xgb_test_probs = xgb.predict_proba(X_te)[:, 1]
         xgb_test_preds = (xgb_test_probs >= xgb_best_t).astype(int)
+        
+        df_te_eval['prob_xgb'] = xgb_test_probs
+        daily_ics_xgb, top3_hits_xgb = [], []
+        for d, grp in df_te_eval.groupby('date'):
+            if len(grp) >= 10:
+                if grp['y'].nunique() > 1 and grp['prob_xgb'].nunique() > 1:
+                    ic, _ = spearmanr(grp['prob_xgb'], grp['y'])
+                    if not np.isnan(ic):
+                        daily_ics_xgb.append(ic)
+                top3 = grp.sort_values('prob_xgb', ascending=False).head(3)
+                top3_hits_xgb.append(top3['y'].mean())
+                
+        mean_ic_xgb = np.mean(daily_ics_xgb) if daily_ics_xgb else 0.0
+        std_ic_xgb = np.std(daily_ics_xgb) if daily_ics_xgb else 1.0
+        t_stat_xgb = (mean_ic_xgb / (std_ic_xgb + 1e-8)) * np.sqrt(len(daily_ics_xgb))
+        top3_hit_xgb = np.mean(top3_hits_xgb) * 100 if top3_hits_xgb else 0.0
+
         xgb_test_metrics = {
             "accuracy": accuracy_score(y_te, xgb_test_preds),
             "precision": precision_score(y_te, xgb_test_preds, zero_division=0),
             "recall": recall_score(y_te, xgb_test_preds, zero_division=0),
-            "f1": f1_score(y_te, xgb_test_preds, zero_division=0)
+            "f1": f1_score(y_te, xgb_test_preds, zero_division=0),
+            "auc": roc_auc_score(y_te, xgb_test_probs) if len(np.unique(y_te)) > 1 else 0.5,
+            "naive_baseline": max(y_te.mean(), 1 - y_te.mean()),
+            "mean_daily_ic": mean_ic_xgb,
+            "ic_t_stat": t_stat_xgb,
+            "top3_hit_rate": top3_hit_xgb
         }
         fold_xgb_thresholds.append(xgb_best_t)
         fold_xgb_val_f1s.append(xgb_best_val_f1)
@@ -456,6 +502,11 @@ def train_pooled_model(target_files, target_name):
     avg_test_prec = np.mean([m["precision"] for m in ensemble_test_metrics])
     avg_test_rec = np.mean([m["recall"] for m in ensemble_test_metrics])
     avg_test_f1 = np.mean([m["f1"] for m in ensemble_test_metrics])
+    avg_test_auc = np.mean([m["auc"] for m in ensemble_test_metrics])
+    avg_test_naive = np.mean([m["naive_baseline"] for m in ensemble_test_metrics])
+    avg_daily_ic = np.mean([m["mean_daily_ic"] for m in ensemble_test_metrics])
+    avg_ic_t_stat = np.mean([m["ic_t_stat"] for m in ensemble_test_metrics])
+    avg_top3_hit = np.mean([m["top3_hit_rate"] for m in ensemble_test_metrics])
     
     # 3. Train Final Model on 100% of stacked dataset
     rf_final_selector = RandomForestClassifier(n_estimators=100, max_depth=5, class_weight='balanced', random_state=42)
@@ -483,15 +534,7 @@ def train_pooled_model(target_files, target_name):
         final_model = RandomForestClassifier(n_estimators=100, max_depth=5, class_weight='balanced', random_state=42)
         final_model.fit(X_final_tr, y_final_tr)
         val_probs = final_model.predict_proba(X_final_va)[:, 1]
-        
-        final_opt_threshold = 0.5
-        best_val_f1 = 0.0
-        for t in np.arange(0.05, 0.81, 0.01):
-            val_preds = (val_probs >= t).astype(int)
-            f1 = f1_score(y_final_va, val_preds, zero_division=0)
-            if f1 > best_val_f1:
-                best_val_f1 = f1
-                final_opt_threshold = t
+        final_opt_threshold, best_val_f1 = optimize_decision_threshold(y_final_va, val_probs, target_name)
                 
         # Fit on 100% of stacked dataset
         final_model = RandomForestClassifier(n_estimators=100, max_depth=5, class_weight='balanced', random_state=42)
@@ -512,15 +555,7 @@ def train_pooled_model(target_files, target_name):
         )
         final_model.fit(X_final_tr, y_final_tr)
         val_probs = final_model.predict_proba(X_final_va)[:, 1]
-        
-        final_opt_threshold = 0.5
-        best_val_f1 = 0.0
-        for t in np.arange(0.05, 0.81, 0.01):
-            val_preds = (val_probs >= t).astype(int)
-            f1 = f1_score(y_final_va, val_preds, zero_division=0)
-            if f1 > best_val_f1:
-                best_val_f1 = f1
-                final_opt_threshold = t
+        final_opt_threshold, best_val_f1 = optimize_decision_threshold(y_final_va, val_probs, target_name)
                 
         # Fit on 100% of stacked dataset
         neg_all = np.sum(y_all == 0)
@@ -549,21 +584,28 @@ def train_pooled_model(target_files, target_name):
     joblib.dump(model_pkg, model_path)
     print(f"[SUCCESS] Global Pooled Model saved to: {model_path}")
     
-    # Save scorecard entry
+    # Save scorecard entry with strict out-of-sample metrics
     scorecard_result = {
         "status": "trained",
         "best_model": best_model_name,
+        "validation_methodology": "5-fold walk-forward cross-validation with 5-day purged embargo",
+        "samples": len(df_stacked),
+        "num_stocks": len(target_files),
         "metrics": {
-            "accuracy": round(float(avg_test_acc), 3),
-            "precision": round(float(avg_test_prec), 3),
-            "recall": round(float(avg_test_rec), 3),
-            "f1": round(float(avg_test_f1), 3)
+            "oos_accuracy": round(float(avg_test_acc), 4),
+            "oos_precision": round(float(avg_test_prec), 4),
+            "oos_recall": round(float(avg_test_rec), 4),
+            "oos_f1_score": round(float(avg_test_f1), 4),
+            "oos_auc": round(float(avg_test_auc), 4),
+            "oos_naive_baseline": round(float(avg_test_naive), 4),
+            "oos_mean_daily_ic": round(float(avg_daily_ic), 4),
+            "oos_ic_t_stat": round(float(avg_ic_t_stat), 2),
+            "oos_top3_hit_rate_%": round(float(avg_top3_hit), 2)
         },
         "opt_threshold": round(float(final_opt_threshold), 3),
-        "total_days": len(df_stacked),
-        "num_folds": 5,
-        "positive_class_ratio": round(float(y_all.mean()), 3),
-        "selected_features": final_selected_features
+        "positive_class_ratio": round(float(y_all.mean()), 4),
+        "selected_features": final_selected_features,
+        "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     
     scorecard_path = os.path.join(BASE_DIR, "stock_selection", f"scorecard_{target_name}.json")
@@ -582,13 +624,17 @@ def train_pooled_model(target_files, target_name):
     print("\n" + "=" * 80)
     print(f"                 GLOBAL POOLED MODEL SUMMARY: {target_name.upper()}                 ")
     print("=" * 80)
-    print(f"  Model Type:        {best_model_name}")
-    print(f"  Total Days:        {len(df_stacked)} (across {len(target_files)} symbols)")
-    print(f"  Accuracy (CV):     {avg_test_acc:.3f}")
-    print(f"  Precision (CV):    {avg_test_prec:.3f}")
-    print(f"  F1-Score (CV):     {avg_test_f1:.3f}")
-    print(f"  Opt Threshold:     {final_opt_threshold:.3f}")
-    print(f"  Positive Ratio:    {y_all.mean():.3%}")
+    print(f"  Model Type:             {best_model_name}")
+    print(f"  Total Days:             {len(df_stacked)} (across {len(target_files)} symbols)")
+    print(f"  OOS Accuracy:           {avg_test_acc:.4f} (vs Naive Baseline {avg_test_naive:.4f})")
+    print(f"  OOS Precision:          {avg_test_prec:.4f}")
+    print(f"  OOS Recall:             {avg_test_rec:.4f}")
+    print(f"  OOS F1-Score:           {avg_test_f1:.4f}")
+    print(f"  OOS AUC:                {avg_test_auc:.4f}")
+    print(f"  OOS Mean Daily IC:      {avg_daily_ic:.4f} (t-stat: {avg_ic_t_stat:.2f})")
+    print(f"  OOS Top-3 Hit Rate:     {avg_top3_hit:.2f}% (vs Base Positive Ratio {y_all.mean():.2%})")
+    print(f"  Opt Threshold:          {final_opt_threshold:.3f}")
+    print(f"  Positive Ratio:         {y_all.mean():.3%}")
     print("=" * 80)
 
 def train_wrapper(args):

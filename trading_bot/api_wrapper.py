@@ -18,7 +18,7 @@ from trading_bot.alerts import AlertManager
 def safe_int(x, default=0):
     """Safely convert value to int, returns default if conversion fails"""
     try:
-        return int(x) if x else default
+        return int(x)
     except (TypeError, ValueError):
         return default
 
@@ -134,13 +134,11 @@ class DhanAPIWrapper:
                             continue
                         return None
                     
-                    if "input_exception" in error_msg or "dh-905" in error_msg:
-                         self.logger.error(f"[PERMANENT_FAIL] Invalid Data/Symbol: {error_msg}")
-                         return None
-
                     self.logger.warning(f"API error (status={status}): {error_msg}")
                     raise ConnectionError(f"Transient API Error: {error_msg}")
                 
+                with DhanAPIWrapper._failures_lock:
+                    DhanAPIWrapper._consecutive_failures = 0
                 return result
                 
             except Exception as e:
@@ -325,6 +323,8 @@ class DhanAPIWrapper:
             self.logger.warning(f"No historical data received from API")
             return None
             
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.exception(f"Exception in get_historical_data: {e}")
             return None
@@ -341,6 +341,8 @@ class DhanAPIWrapper:
             
             return []
             
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.exception(f"Exception in get_positions: {e}")
             return []
@@ -351,6 +353,8 @@ class DhanAPIWrapper:
             resp = self._make_request(self.dhan.get_order_by_id, order_id=order_id)
             if resp and resp.get('status') == 'success' and resp.get('data'):
                 return resp['data'].get('orderStatus')
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"Error fetching status for order {order_id}: {e}")
         return None
@@ -417,6 +421,8 @@ class DhanAPIWrapper:
                 if attempt <= max_retries:
                     time.sleep(retry_delay)
                     continue
+            except RuntimeError:
+                raise
             except Exception as e:
                 error_msg = str(e).lower()
                 is_non_retryable = any(keyword in error_msg for keyword in NON_RETRYABLE_ERRORS)
@@ -442,19 +448,19 @@ class DhanAPIWrapper:
         """Place a 'Super Order' (Bracket Order) using the direct API endpoint."""
         url = "https://api.dhan.co/v2/super/orders"
         headers = {
-            'Content-Type': 'application/json',
-            'access-token': self.api_token
+            "access-token": self.api_token,
+            "client-id": self.client_id,
+            "Content-Type": "application/json"
         }
-        
-        correlation_id = str(uuid.uuid4())[:20]
         
         payload = {
             "dhanClientId": self.client_id,
-            "correlationId": correlation_id,
+            "correlationId": str(uuid.uuid4())[:20],
             "transactionType": transaction_type,
             "exchangeSegment": exchange_segment,
             "productType": product_type,
             "orderType": order_type,
+            "validity": "DAY",
             "securityId": str(security_id),
             "quantity": int(quantity),
             "price": float(price),
@@ -473,15 +479,22 @@ class DhanAPIWrapper:
             
             self.logger.info(f"[SUPER_ORDER] Response: {resp_json}")
             
-            if response.status_code == 200 and resp_json.get('orderStatus') in ['PENDING', 'TRANSIT', 'TRADED']:
+            if response.status_code == 200 and resp_json.get('orderStatus') in ['PENDING', 'TRANSIT', 'TRADED', 'SUBMITTED', 'SUCCESS']:
                 return resp_json
             else:
                 self.logger.error(f"[SUPER_ORDER] Failed: {resp_json}")
-                return None
+                if isinstance(resp_json, dict):
+                    resp_json['failed'] = True
+                    if 'orderStatus' not in resp_json or resp_json['orderStatus'] not in ['REJECTED', 'FAILED']:
+                        resp_json['orderStatus'] = 'REJECTED'
+                    return resp_json
+                return {'orderStatus': 'REJECTED', 'remarks': str(resp_json), 'failed': True}
                 
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.exception(f"[SUPER_ORDER] Exception: {e}")
-            return None
+            return {'orderStatus': 'FAILED', 'remarks': str(e), 'failed': True}
 
     def place_entry_order(self, 
                           security_id: str, 
@@ -551,8 +564,38 @@ class DhanAPIWrapper:
             else:
                 self.logger.warning(f"[CANCEL] Order {order_id} cancellation failed or already cancelled. Resp: {resp}")
                 return False
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"[CANCEL] Exception while cancelling order {order_id}: {e}")
+            return False
+
+    def modify_super_order_sl(self, order_id: str, new_sl_price: float) -> bool:
+        """Modify the STOP_LOSS_LEG of an active Super Order to new_sl_price directly on Dhan."""
+        try:
+            rounded_sl = round(float(new_sl_price) * 20) / 20.0
+            self.logger.info(f"[SUPER_ORDER] Modifying STOP_LOSS_LEG for order {order_id} to SL price {rounded_sl:.2f} on Dhan...")
+            resp = self._make_request(
+                self.dhan.modify_super_order,
+                order_id=str(order_id),
+                order_type="STOP_LOSS_MARKET",
+                leg_name="STOP_LOSS_LEG",
+                stopLossPrice=rounded_sl
+            )
+            is_success = resp and (
+                str(resp.get('orderStatus', '')).upper() in ['SUCCESS', 'TRANSIT', 'PENDING', 'MODIFIED', 'TRADED']
+                or resp.get('status') == 'success'
+            )
+            if is_success:
+                self.logger.info(f"[SUPER_ORDER] STOP_LOSS_LEG for order {order_id} successfully updated on Dhan to {rounded_sl:.2f}.")
+                return True
+            else:
+                self.logger.warning(f"[SUPER_ORDER] Failed to update STOP_LOSS_LEG for order {order_id}. Resp: {resp}")
+                return False
+        except RuntimeError:
+            raise
+        except Exception as e:
+            self.logger.error(f"[SUPER_ORDER] Exception while modifying STOP_LOSS_LEG for {order_id}: {e}")
             return False
             
     def get_pending_orders(self) -> List[Dict]:
@@ -564,6 +607,8 @@ class DhanAPIWrapper:
                 pending = [o for o in orders if str(o.get('orderStatus', '')).upper() in ['PENDING', 'OPEN']]
                 return pending
             return []
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"[ORDERS] Failed to fetch pending orders: {e}")
             return []
@@ -571,8 +616,14 @@ class DhanAPIWrapper:
     def close_all_intraday_positions(self) -> List[Dict]:
         """Square off all open NSE_FNO intraday positions."""
         closed_positions = []
+        last_runtime_error = None
         try:
-            positions = self.get_positions()
+            try:
+                positions = self.get_positions()
+            except RuntimeError as e:
+                self.logger.error(f"[SQ_OFF] Circuit breaker tripped while fetching positions: {e}")
+                raise
+
             if not positions:
                 self.logger.info("[SQ_OFF] No open positions to close.")
                 return []
@@ -591,24 +642,35 @@ class DhanAPIWrapper:
                     
                     self.logger.warning(f"[SQ_OFF] Closing position: {security_id} (Qty: {net_qty}) via {transaction_type} on {exchange}")
                     
-                    response = self.place_order(
-                        security_id=security_id,
-                        transaction_type=transaction_type,
-                        quantity=abs_qty,
-                        exchange_segment=exchange,
-                        product_type=product,
-                        order_type='MARKET',
-                        price=0.0
-                    )
-                    
-                    if response:
-                        closed_positions.append(response)
-                        self.logger.info(f"[SQ_OFF] Success. Order ID: {response.get('orderId')}")
-                    else:
-                        self.logger.error(f"[SQ_OFF] Failed to square off {security_id}")
+                    try:
+                        response = self.place_order(
+                            security_id=security_id,
+                            transaction_type=transaction_type,
+                            quantity=abs_qty,
+                            exchange_segment=exchange,
+                            product_type=product,
+                            order_type='MARKET',
+                            price=0.0
+                        )
+                        
+                        if response:
+                            closed_positions.append(response)
+                            self.logger.info(f"[SQ_OFF] Success. Order ID: {response.get('orderId')}")
+                        else:
+                            self.logger.error(f"[SQ_OFF] Failed to square off {security_id}")
+                    except RuntimeError as e:
+                        last_runtime_error = e
+                        self.logger.critical(f"[SQ_OFF] Circuit-breaker error while squaring off {security_id}: {e}. Continuing remaining positions...")
+                    except Exception as e:
+                        self.logger.error(f"[SQ_OFF] Exception while squaring off {security_id}: {e}")
             
+            if last_runtime_error is not None:
+                raise last_runtime_error
+
             return closed_positions
 
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.exception(f"[SQ_OFF] Error during auto square-off: {e}")
             return []
@@ -627,8 +689,10 @@ class DhanAPIWrapper:
             "UnderlyingScrip": int(underlying_scrip),
             "UnderlyingSeg": underlying_seg
         }
+        self.rate_limiter.wait_if_needed('NON_TRADING')
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
+            with NetworkContext(self.source_ip, self.proxy_url, self.logger):
+                resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
             if resp.status_code == 200:
                 data = resp.json().get("data", [])
                 self.logger.info(f"[DHAN_API_V2] Expiry List fetched: {data[:5]} (Total {len(data)})")
@@ -636,6 +700,8 @@ class DhanAPIWrapper:
             else:
                 self.logger.error(f"[DHAN_API_V2] Expiry List Error {resp.status_code}: {resp.text}")
                 return []
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"[DHAN_API_V2] Exception during get_expiry_list_v2: {e}")
             return []
@@ -658,13 +724,17 @@ class DhanAPIWrapper:
         if expiry:
             payload["Expiry"] = expiry
             
+        self.rate_limiter.wait_if_needed('NON_TRADING')
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
+            with NetworkContext(self.source_ip, self.proxy_url, self.logger):
+                resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
             if resp.status_code == 200:
                 return resp.json().get("data", {})
             else:
                 self.logger.error(f"[DHAN_API_V2] Option Chain Error {resp.status_code}: {resp.text}")
                 return {}
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"[DHAN_API_V2] Exception during get_option_chain_v2: {e}")
             return {}
@@ -696,8 +766,10 @@ class DhanAPIWrapper:
             "includeOrder": True,
             "scripList": scrip_list
         }
+        self.rate_limiter.wait_if_needed('NON_TRADING')
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
+            with NetworkContext(self.source_ip, self.proxy_url, self.logger):
+                resp = requests.post(url, headers=headers, json=payload, timeout=self.config.REQUEST_TIMEOUT)
             if resp.status_code == 200:
                 data = resp.json()
                 self.logger.info(f"[MARGIN_V2] Multi-Order Margin Required: {data.get('totalMargin')}, Available: {data.get('availableBalance')}")
@@ -705,6 +777,8 @@ class DhanAPIWrapper:
             else:
                 self.logger.error(f"[MARGIN_V2] Margin Calc Error {resp.status_code}: {resp.text}")
                 return {}
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"[MARGIN_V2] Exception during calculate_multi_order_margin: {e}")
             return {}
@@ -715,6 +789,7 @@ class DhanAPIWrapper:
         """
         prefix_upper = str(prefix).upper()
         opt_type_upper = str(option_type).upper()
+        strike_str = str(int(strike)) if isinstance(strike, (int, float)) and float(strike).is_integer() else str(strike)
         
         # 1. Resolve expiry date if not provided
         if not expiry_date:
@@ -725,6 +800,8 @@ class DhanAPIWrapper:
                 )))
                 if len(expiries) > expiry_index:
                     expiry_date = expiries[expiry_index]
+            except RuntimeError:
+                raise
             except Exception:
                 pass
 
@@ -738,11 +815,24 @@ class DhanAPIWrapper:
             if key_float in self.config.master_cache_index:
                 return str(self.config.master_cache_index[key_float][0])
 
-        # 3. Fallback: Search master_cache_index ignoring exact expiry match (nearest matching expiry)
+        # 3. Fallback: Search master_cache_index for nearest valid future expiry
         try:
-            for key, val in self.config.master_cache_index.items():
-                if key[0] == prefix_upper and str(key[2]) == str(int(strike) if isinstance(strike, (int, float)) and float(strike).is_integer() else strike) and key[3] == opt_type_upper:
-                    return str(val[0])
+            matching_candidates = [
+                (key[1], val[0]) for key, val in self.config.master_cache_index.items()
+                if key[0] == prefix_upper
+                and str(key[2]) == strike_str
+                and key[3] == opt_type_upper
+            ]
+            if matching_candidates:
+                today_str = datetime.now(self.config.TIMEZONE).strftime('%Y-%m-%d')
+                future_candidates = [c for c in matching_candidates if c[0] >= today_str]
+                if future_candidates:
+                    future_candidates.sort(key=lambda x: x[0])
+                    return str(future_candidates[0][1])
+                matching_candidates.sort(key=lambda x: x[0])
+                return str(matching_candidates[-1][1])
+        except RuntimeError:
+            raise
         except Exception:
             pass
 
@@ -750,7 +840,6 @@ class DhanAPIWrapper:
         sec_master_df = getattr(self.config, "sec_master_df", None)
         if sec_master_df is not None and not sec_master_df.empty:
             try:
-                strike_str = str(int(strike)) if isinstance(strike, (int, float)) and float(strike).is_integer() else str(strike)
                 matching = sec_master_df[
                     (sec_master_df['SEM_TRADING_SYMBOL'].str.contains(f"-{strike_str}-", case=False, na=False)) &
                     (sec_master_df['SEM_TRADING_SYMBOL'].str.endswith(opt_type_upper, na=False))
@@ -761,6 +850,8 @@ class DhanAPIWrapper:
                         matching = matching_exp
                 if not matching.empty:
                     return str(matching.iloc[0]['SEM_SMST_SECURITY_ID'])
+            except RuntimeError:
+                raise
             except Exception as ex:
                 self.logger.warning(f"[RESOLVE_SEC_ID] sec_master_df lookup failed: {ex}")
 

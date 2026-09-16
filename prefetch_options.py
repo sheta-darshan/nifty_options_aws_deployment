@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument("--instrument", type=str, default="NIFTY", help="Instrument to pre-fetch (e.g. NIFTY, BANKNIFTY)")
     parser.add_argument("--offsets", type=str, default="-2,-1,0,1,2", help="Comma-separated strike offsets from ATM (default: -2,-1,0,1,2)")
     parser.add_argument("--expiries", type=str, default="0,1", help="Comma-separated expiry indices (default: 0,1)")
-    parser.add_argument("--strategy", "-s", type=int, choices=list(range(1, 23)), help="Strategy index to run (1-22). If omitted, uses active strategy from config/env")
+    parser.add_argument("--strategy", "-s", type=int, choices=list(range(1, 24)), help="Strategy index to run (1-23). If omitted, uses active strategy from config/env")
     parser.add_argument("--limit-days", type=int, default=None, help="Limit to most recent N days with signals (for testing)")
     
     args = parser.parse_args()
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         
     config = BacktestConfig()
     if args.strategy:
-        for i in range(1, 23):
+        for i in range(1, 24):
             setattr(config, f"ENABLE_STRATEGY_{i}", (i == args.strategy))
         config.apply_strategy_defaults(f"Strategy_{args.strategy}")
         

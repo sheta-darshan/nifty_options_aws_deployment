@@ -57,7 +57,7 @@
         "strike_offset_buy": 0,
         "strike_offset_sell": 0,
         "timeframe": "5min",
-        "min_wick_ratio": 0.50,
+        "min_wick_ratio": 0.5,
         "risk_reward": 2.2,
         "min_cpr_width_pct": 0.08,
         "max_daily_trades": 2,
@@ -111,7 +111,8 @@
         "profit_target_sell": 0,
         "expiry_index": 0,
         "num_strikes": 1,
-        "num_lots_sell": 5,
+        "num_lots_sell": 1,
+        "num_lots": 1,
         "short_option_target_type": "MAX_PROFIT",
         "short_option_decay_value": 0.05,
         "tp_mult_sell": 2,
@@ -145,7 +146,9 @@
         "profit_target_sell": 0,
         "expiry_index": 0,
         "num_strikes": 1,
-        "num_lots_sell": 5,
+        "num_lots_sell": 1,
+        "num_lots_high_conviction": 2,
+        "enable_dynamic_conviction": true,
         "short_option_target_type": "MAX_PROFIT",
         "short_option_decay_value": 0.05,
         "tp_mult_sell": 2,
@@ -161,10 +164,12 @@
         "points_trail_buy": 10.0,
         "points_sl_sell": 74.0,
         "points_target_sell": 25.0,
-        "points_be_sell": 0.0,
+        "points_target_high_conviction": 45.0,
+        "points_be_sell": 25.0,
         "points_trail_sell": 0,
         "LEG_MODE": "SELL",
-        "local_exit_monitoring": false,
+        "local_exit_monitoring": true,
+        "broker_safety_sl": true,
         "carry_forward": true,
         "allowed_regimes_trend": [
           "NEUTRAL",
@@ -525,7 +530,9 @@
         "profit_target_sell": 0,
         "expiry_index": 0,
         "num_strikes": 1,
-        "num_lots_sell": 3,
+        "num_lots_sell": 1,
+        "num_lots_high_conviction": 2,
+        "enable_dynamic_conviction": true,
         "short_option_target_type": "MAX_PROFIT",
         "short_option_decay_value": 0.05,
         "tp_mult_sell": 2,
@@ -541,10 +548,12 @@
         "points_trail_buy": 20.0,
         "points_sl_sell": 100.0,
         "points_target_sell": 45.0,
-        "points_be_sell": 0.0,
+        "points_target_high_conviction": 75.0,
+        "points_be_sell": 45.0,
         "points_trail_sell": 0,
         "LEG_MODE": "SELL",
-        "local_exit_monitoring": false,
+        "local_exit_monitoring": true,
+        "broker_safety_sl": true,
         "carry_forward": true,
         "allowed_regimes_trend": [
           "NEUTRAL",
@@ -719,7 +728,9 @@
         "profit_target_sell": 0,
         "expiry_index": 0,
         "num_strikes": 1,
-        "num_lots_sell": 10,
+        "num_lots_sell": 1,
+        "num_lots_high_conviction": 2,
+        "enable_dynamic_conviction": true,
         "short_option_target_type": "MAX_PROFIT",
         "short_option_decay_value": 0.05,
         "tp_mult_sell": 2,
@@ -735,10 +746,12 @@
         "points_trail_buy": 25.0,
         "points_sl_sell": 140.0,
         "points_target_sell": 50.0,
-        "points_be_sell": 0.0,
+        "points_target_high_conviction": 90.0,
+        "points_be_sell": 40.0,
         "points_trail_sell": 0,
         "LEG_MODE": "SELL",
-        "local_exit_monitoring": false,
+        "local_exit_monitoring": true,
+        "broker_safety_sl": true,
         "carry_forward": true,
         "allowed_regimes_trend": [
           "NEUTRAL",
@@ -769,7 +782,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BSE",
     "strike_step": 50,
     "trailing_mult_buy": 0,
@@ -862,7 +875,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 76,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ANGELONE": {
     "security_id": 324,
@@ -886,7 +913,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ANGELONE",
     "strike_step": 5,
     "trailing_mult_buy": 0,
@@ -968,7 +995,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 833,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "GODREJPROP": {
     "security_id": 17875,
@@ -988,7 +1029,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "max_active": 1,
     "daily_limit": 2,
     "profit_target_buy": 0,
@@ -1073,7 +1114,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 134,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PAYTM": {
     "security_id": 6705,
@@ -1092,7 +1147,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PAYTM",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -1173,7 +1228,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 143,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LAURUSLABS": {
     "security_id": 19234,
@@ -1192,7 +1261,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LAURUSLABS",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -1273,7 +1342,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 130,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "RECLTD": {
     "security_id": 15355,
@@ -1292,7 +1375,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "RECLTD",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -1373,7 +1456,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 795,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ABCAPITAL": {
     "security_id": 21614,
@@ -1393,7 +1490,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "max_active": 1,
     "daily_limit": 2,
     "profit_target_buy": 0,
@@ -1478,7 +1575,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 627,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "IREDA": {
     "security_id": 20261,
@@ -1498,7 +1609,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "max_active": 1,
     "daily_limit": 2,
     "profit_target_buy": 0,
@@ -1583,7 +1694,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2234,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NATIONALUM": {
     "security_id": 6364,
@@ -1603,7 +1728,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "max_active": 1,
     "daily_limit": 2,
     "profit_target_buy": 0,
@@ -1688,7 +1813,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 658,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "UNIONBANK": {
     "security_id": 10753,
@@ -1708,7 +1847,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "max_active": 1,
     "daily_limit": 2,
     "profit_target_buy": 0,
@@ -1793,7 +1932,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1369,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CANBK": {
     "security_id": 10794,
@@ -1817,7 +1970,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CANBK",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -1898,7 +2051,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2015,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "GMRAIRPORT": {
     "security_id": 13528,
@@ -1922,7 +2089,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "GMRAIRPORT",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -2003,7 +2170,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2549,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PNB": {
     "security_id": 10666,
@@ -2023,7 +2204,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "max_active": 1,
     "daily_limit": 2,
     "profit_target_buy": 0,
@@ -2108,7 +2289,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2155,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SUZLON": {
     "security_id": 12018,
@@ -2128,7 +2323,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "max_active": 1,
     "daily_limit": 2,
     "profit_target_buy": 0,
@@ -2213,7 +2408,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 5505,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PAGEIND": {
     "security_id": 14413,
@@ -2237,7 +2446,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PAGEIND",
     "strike_step": 250,
     "trailing_mult_buy": 0.7,
@@ -2318,7 +2527,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 7,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "APOLLOHOSP": {
     "security_id": 157,
@@ -2342,7 +2565,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "APOLLOHOSP",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -2423,7 +2646,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 28,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MCX": {
     "security_id": 31181,
@@ -2447,7 +2684,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MCX",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -2528,7 +2765,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 75,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "KEI": {
     "security_id": 13310,
@@ -2552,7 +2803,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "KEI",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -2633,7 +2884,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 54,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "GLENMARK": {
     "security_id": 7406,
@@ -2657,7 +2922,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "GLENMARK",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -2738,7 +3003,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 103,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "UNITDSPR": {
     "security_id": 10447,
@@ -2762,7 +3041,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "UNITDSPR",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -2843,7 +3122,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 178,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PATANJALI": {
     "security_id": 17029,
@@ -2862,7 +3155,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PATANJALI",
     "strike_step": 5,
     "trailing_mult_buy": 1.5,
@@ -2943,7 +3236,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 738,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "AUBANK": {
     "security_id": 21238,
@@ -2967,7 +3274,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "AUBANK",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -3048,7 +3355,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 235,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "UPL": {
     "security_id": 11287,
@@ -3072,7 +3393,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "UPL",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -3153,7 +3474,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 435,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NTPC": {
     "security_id": 11630,
@@ -3177,7 +3512,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NTPC",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -3258,7 +3593,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 749,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LTF": {
     "security_id": 24948,
@@ -3282,7 +3631,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LTF",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -3363,7 +3712,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 806,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "RBLBANK": {
     "security_id": 18391,
@@ -3387,7 +3750,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "RBLBANK",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -3468,7 +3831,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 600,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "360ONE": {
     "security_id": 13061,
@@ -3492,7 +3869,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "360ONE",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -3573,7 +3950,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 228,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ABB": {
     "security_id": 13,
@@ -3597,7 +3988,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ABB",
     "strike_step": 50,
     "trailing_mult_buy": 0,
@@ -3678,7 +4069,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 34,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ADANIENSOL": {
     "security_id": 10217,
@@ -3702,7 +4107,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ADANIENSOL",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -3783,7 +4188,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 176,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ADANIENT": {
     "security_id": 25,
@@ -3807,7 +4226,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ADANIENT",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -3888,7 +4307,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 81,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ADANIGREEN": {
     "security_id": 3563,
@@ -3912,7 +4345,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ADANIGREEN",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -3993,7 +4426,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 191,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ADANIPORTS": {
     "security_id": 15083,
@@ -4017,7 +4464,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ADANIPORTS",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -4098,7 +4545,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 142,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ALKEM": {
     "security_id": 11703,
@@ -4122,7 +4583,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ALKEM",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -4203,7 +4664,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 48,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "AMBER": {
     "security_id": 1185,
@@ -4227,7 +4702,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "AMBER",
     "strike_step": 100,
     "trailing_mult_buy": 0.7,
@@ -4308,7 +4783,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 35,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "AMBUJACEM": {
     "security_id": 1270,
@@ -4332,7 +4821,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "AMBUJACEM",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -4413,7 +4902,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 633,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "APLAPOLLO": {
     "security_id": 25780,
@@ -4430,7 +4933,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "APLAPOLLO",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -4511,7 +5014,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 115,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ASHOKLEY": {
     "security_id": 212,
@@ -4535,7 +5052,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ASHOKLEY",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -4616,7 +5133,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1497,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ASIANPAINT": {
     "security_id": 236,
@@ -4633,7 +5164,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ASIANPAINT",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -4714,7 +5245,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 101,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ASTRAL": {
     "security_id": 14418,
@@ -4731,7 +5276,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ASTRAL",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -4812,7 +5357,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 171,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "AUROPHARMA": {
     "security_id": 275,
@@ -4829,7 +5388,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "AUROPHARMA",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -4910,7 +5469,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 149,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "AXISBANK": {
     "security_id": 5900,
@@ -4934,7 +5507,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "AXISBANK",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -5015,7 +5588,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 201,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BAJAJ-AUTO": {
     "security_id": 16669,
@@ -5039,7 +5626,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BAJAJ-AUTO",
     "strike_step": 100,
     "trailing_mult_buy": 0.7,
@@ -5120,7 +5707,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 20,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BAJAJFINSV": {
     "security_id": 16675,
@@ -5137,7 +5738,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BAJAJFINSV",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -5218,7 +5819,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 130,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BAJFINANCE": {
     "security_id": 317,
@@ -5237,7 +5852,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BAJFINANCE",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -5318,7 +5933,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 240,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BANDHANBNK": {
     "security_id": 2263,
@@ -5337,7 +5966,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BANDHANBNK",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -5418,7 +6047,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1458,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BANKBARODA": {
     "security_id": 4668,
@@ -5442,7 +6085,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BANKBARODA",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -5523,7 +6166,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1066,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BANKINDIA": {
     "security_id": 4745,
@@ -5547,7 +6204,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BANKINDIA",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -5628,7 +6285,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1782,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BDL": {
     "security_id": 2144,
@@ -5645,7 +6316,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BDL",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -5726,7 +6397,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 206,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BEL": {
     "security_id": 383,
@@ -5745,7 +6430,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BEL",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -5826,7 +6511,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 615,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BHARTIARTL": {
     "security_id": 10604,
@@ -5843,7 +6542,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BHARTIARTL",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -5924,7 +6623,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 137,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BHEL": {
     "security_id": 438,
@@ -5943,7 +6656,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BHEL",
     "strike_step": 2.5,
     "trailing_mult_buy": 0,
@@ -6024,7 +6737,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 576,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BIOCON": {
     "security_id": 11373,
@@ -6043,7 +6770,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BIOCON",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -6124,7 +6851,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 632,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BLUESTARCO": {
     "security_id": 8311,
@@ -6148,7 +6889,7 @@
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BLUESTARCO",
     "strike_step": 20,
     "trailing_mult_buy": 0,
@@ -6229,7 +6970,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 172,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BOSCHLTD": {
     "security_id": 2181,
@@ -6253,7 +7008,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BOSCHLTD",
     "strike_step": 250,
     "trailing_mult_buy": 0.7,
@@ -6334,7 +7089,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 5,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BPCL": {
     "security_id": 526,
@@ -6353,7 +7122,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BPCL",
     "strike_step": 5,
     "trailing_mult_buy": 0,
@@ -6434,7 +7203,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 824,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "BRITANNIA": {
     "security_id": 547,
@@ -6458,7 +7241,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "BRITANNIA",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -6539,7 +7322,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 49,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CAMS": {
     "security_id": 342,
@@ -6558,7 +7355,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CAMS",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -6639,7 +7436,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 348,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CDSL": {
     "security_id": 21174,
@@ -6656,7 +7467,7 @@
     "profit_target_sell": 0,
     "expiry_index": 0,
     "num_strikes": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CDSL",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -6737,7 +7548,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 183,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CGPOWER": {
     "security_id": 760,
@@ -6756,7 +7581,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CGPOWER",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -6837,7 +7662,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 270,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CHOLAFIN": {
     "security_id": 685,
@@ -6861,7 +7700,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CHOLAFIN",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -6942,7 +7781,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 138,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CIPLA": {
     "security_id": 694,
@@ -6966,7 +7819,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CIPLA",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -7047,7 +7900,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 182,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "COALINDIA": {
     "security_id": 20374,
@@ -7071,7 +7938,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "COALINDIA",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -7152,7 +8019,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 580,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "COFORGE": {
     "security_id": 11543,
@@ -7176,7 +8057,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "COFORGE",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -7257,7 +8138,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 135,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CONCOR": {
     "security_id": 4749,
@@ -7281,7 +8176,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CONCOR",
     "strike_step": 5,
     "trailing_mult_buy": 0,
@@ -7360,7 +8255,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 491,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CROMPTON": {
     "security_id": 17094,
@@ -7379,7 +8288,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CROMPTON",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -7460,7 +8369,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1078,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "CUMMINSIND": {
     "security_id": 1901,
@@ -7484,7 +8407,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "CUMMINSIND",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -7565,7 +8488,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 48,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DABUR": {
     "security_id": 772,
@@ -7589,7 +8526,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DABUR",
     "strike_step": 5,
     "trailing_mult_buy": 0,
@@ -7670,7 +8607,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 676,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DALBHARAT": {
     "security_id": 8075,
@@ -7694,7 +8645,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DALBHARAT",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -7775,7 +8726,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 144,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DELHIVERY": {
     "security_id": 9599,
@@ -7799,7 +8764,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DELHIVERY",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -7880,7 +8845,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 555,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DIVISLAB": {
     "security_id": 10940,
@@ -7904,7 +8883,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DIVISLAB",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -7985,7 +8964,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 26,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DIXON": {
     "security_id": 21690,
@@ -8009,7 +9002,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DIXON",
     "strike_step": 100,
     "trailing_mult_buy": 0.7,
@@ -8090,7 +9083,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 18,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DLF": {
     "security_id": 14732,
@@ -8109,7 +9116,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DLF",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -8190,7 +9197,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 379,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DMART": {
     "security_id": 19913,
@@ -8214,7 +9235,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DMART",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -8295,7 +9316,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 67,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "DRREDDY": {
     "security_id": 881,
@@ -8319,7 +9354,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "DRREDDY",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -8400,7 +9435,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 218,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "EICHERMOT": {
     "security_id": 910,
@@ -8424,7 +9473,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "EICHERMOT",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -8505,7 +9554,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 32,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ETERNAL": {
     "security_id": 5097,
@@ -8524,7 +9587,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ETERNAL",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -8605,7 +9668,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 783,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "EXIDEIND": {
     "security_id": 676,
@@ -8629,7 +9706,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "EXIDEIND",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -8710,7 +9787,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 607,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "FEDERALBNK": {
     "security_id": 1023,
@@ -8734,7 +9825,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "FEDERALBNK",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -8815,7 +9906,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 727,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "FORTIS": {
     "security_id": 14592,
@@ -8839,7 +9944,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "FORTIS",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -8920,7 +10025,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 275,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "GAIL": {
     "security_id": 4717,
@@ -8944,7 +10063,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "GAIL",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -9025,7 +10144,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1436,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "GODREJCP": {
     "security_id": 10099,
@@ -9049,7 +10182,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "GODREJCP",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -9130,7 +10263,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 290,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "GRASIM": {
     "security_id": 1232,
@@ -9154,7 +10301,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "GRASIM",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -9235,7 +10382,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 76,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HAL": {
     "security_id": 2303,
@@ -9259,7 +10420,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HAL",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -9340,7 +10501,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 50,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HAVELLS": {
     "security_id": 9819,
@@ -9364,7 +10539,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HAVELLS",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -9445,7 +10620,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 223,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HCLTECH": {
     "security_id": 7229,
@@ -9469,7 +10658,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HCLTECH",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -9550,7 +10739,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 204,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HDFCAMC": {
     "security_id": 4244,
@@ -9574,7 +10777,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HDFCAMC",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -9655,7 +10858,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 103,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HDFCBANK": {
     "security_id": 1333,
@@ -9679,7 +10896,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HDFCBANK",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -9760,7 +10977,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 362,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HDFCLIFE": {
     "security_id": 467,
@@ -9779,7 +11010,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HDFCLIFE",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -9860,7 +11091,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 485,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HEROMOTOCO": {
     "security_id": 1348,
@@ -9884,7 +11129,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HEROMOTOCO",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -9965,7 +11210,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 48,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HINDALCO": {
     "security_id": 1363,
@@ -9984,7 +11243,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HINDALCO",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -10065,7 +11324,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 245,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HINDPETRO": {
     "security_id": 1406,
@@ -10084,7 +11357,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HINDPETRO",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -10165,7 +11438,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 717,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HINDUNILVR": {
     "security_id": 1394,
@@ -10189,7 +11476,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HINDUNILVR",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -10270,7 +11557,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 129,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HINDZINC": {
     "security_id": 1424,
@@ -10294,7 +11595,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HINDZINC",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -10375,7 +11676,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 413,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "HUDCO": {
     "security_id": 20825,
@@ -10394,7 +11709,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "HUDCO",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -10475,7 +11790,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1425,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ICICIBANK": {
     "security_id": 4963,
@@ -10499,7 +11828,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ICICIBANK",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -10580,7 +11909,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 180,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ICICIGI": {
     "security_id": 21770,
@@ -10604,7 +11947,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ICICIGI",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -10685,7 +12028,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 171,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ICICIPRULI": {
     "security_id": 18652,
@@ -10709,7 +12066,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ICICIPRULI",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -10790,7 +12147,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 543,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "IDEA": {
     "security_id": 14366,
@@ -10814,7 +12185,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "IDEA",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -10895,7 +12266,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 16098,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "IDFCFIRSTB": {
     "security_id": 11184,
@@ -10919,7 +12304,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "IDFCFIRSTB",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -11000,7 +12385,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2906,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "IEX": {
     "security_id": 220,
@@ -11019,7 +12418,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "IEX",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -11100,7 +12499,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2117,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "INDHOTEL": {
     "security_id": 1512,
@@ -11119,7 +12532,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "INDHOTEL",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -11200,7 +12613,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 349,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "INDIANB": {
     "security_id": 14309,
@@ -11224,7 +12651,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "INDIANB",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -11305,7 +12732,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 294,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "INDIGO": {
     "security_id": 11195,
@@ -11329,7 +12770,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "INDIGO",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -11410,7 +12851,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 50,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "INDUSINDBK": {
     "security_id": 5258,
@@ -11434,7 +12889,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "INDUSINDBK",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -11515,7 +12970,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 251,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "INDUSTOWER": {
     "security_id": 29135,
@@ -11539,7 +13008,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "INDUSTOWER",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -11620,7 +13089,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 674,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "INFY": {
     "security_id": 1594,
@@ -11644,7 +13127,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "INFY",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -11725,7 +13208,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 242,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "INOXWIND": {
     "security_id": 7852,
@@ -11744,7 +13241,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "INOXWIND",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -11825,7 +13322,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 3242,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "IOC": {
     "security_id": 1624,
@@ -11849,7 +13360,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "IOC",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -11930,7 +13441,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1850,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "IRCTC": {
     "security_id": 13611,
@@ -11949,7 +13474,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "IRCTC",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -12030,7 +13555,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 532,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "IRFC": {
     "security_id": 2029,
@@ -12054,7 +13593,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "IRFC",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -12135,7 +13674,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 3072,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ITC": {
     "security_id": 1660,
@@ -12159,7 +13712,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ITC",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -12240,7 +13793,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 952,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "JINDALSTEL": {
     "security_id": 6733,
@@ -12264,7 +13831,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "JINDALSTEL",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -12345,7 +13912,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 218,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "JIOFIN": {
     "security_id": 18143,
@@ -12369,7 +13950,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "JIOFIN",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -12450,7 +14031,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1083,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "JSWENERGY": {
     "security_id": 17869,
@@ -12469,7 +14064,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "JSWENERGY",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -12550,7 +14145,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 468,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "JSWSTEEL": {
     "security_id": 11723,
@@ -12574,7 +14183,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "JSWSTEEL",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -12655,7 +14264,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 191,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "JUBLFOOD": {
     "security_id": 18096,
@@ -12679,7 +14302,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "JUBLFOOD",
     "strike_step": 5,
     "trailing_mult_buy": 0,
@@ -12760,7 +14383,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 527,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "KALYANKJIL": {
     "security_id": 2955,
@@ -12784,7 +14421,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "KALYANKJIL",
     "strike_step": 5,
     "trailing_mult_buy": 0,
@@ -12865,7 +14502,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 411,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "KAYNES": {
     "security_id": 12092,
@@ -12889,7 +14540,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "KAYNES",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -12970,7 +14621,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 69,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "KFINTECH": {
     "security_id": 13359,
@@ -12994,7 +14659,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "KFINTECH",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -13075,7 +14740,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 275,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "KOTAKBANK": {
     "security_id": 1922,
@@ -13099,7 +14778,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "KOTAKBANK",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -13180,7 +14859,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 601,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "KPITTECH": {
     "security_id": 9683,
@@ -13199,7 +14892,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "KPITTECH",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -13280,7 +14973,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 451,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LICHSGFIN": {
     "security_id": 1997,
@@ -13304,7 +15011,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LICHSGFIN",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -13385,7 +15092,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 448,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LICI": {
     "security_id": 9480,
@@ -13409,7 +15130,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LICI",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -13490,7 +15211,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 613,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LODHA": {
     "security_id": 3220,
@@ -13509,7 +15244,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LODHA",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -13590,7 +15325,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 215,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LT": {
     "security_id": 11483,
@@ -13614,7 +15363,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LT",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -13695,7 +15444,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 64,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LTIM": {
     "security_id": 17818,
@@ -13719,7 +15482,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LTM",
     "strike_step": 50,
     "trailing_mult_buy": 1.5,
@@ -13800,7 +15563,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 54,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "LUPIN": {
     "security_id": 10440,
@@ -13824,7 +15601,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "LUPIN",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -13905,7 +15682,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 120,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "M&M": {
     "security_id": 2031,
@@ -13929,7 +15720,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "M&M",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -14010,7 +15801,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 80,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MANAPPURAM": {
     "security_id": 19061,
@@ -14034,7 +15839,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MANAPPURAM",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -14115,7 +15920,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 781,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MANKIND": {
     "security_id": 15380,
@@ -14139,7 +15958,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MANKIND",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -14220,7 +16039,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 111,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MARICO": {
     "security_id": 4067,
@@ -14244,7 +16077,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MARICO",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -14325,7 +16158,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 309,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MARUTI": {
     "security_id": 10999,
@@ -14349,7 +16196,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MARUTI",
     "strike_step": 100,
     "trailing_mult_buy": 0.7,
@@ -14430,7 +16277,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 20,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MAXHEALTH": {
     "security_id": 22377,
@@ -14454,7 +16315,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MAXHEALTH",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -14535,7 +16396,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 241,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MAZDOCK": {
     "security_id": 509,
@@ -14559,7 +16434,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MAZDOCK",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -14640,7 +16515,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 104,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MFSL": {
     "security_id": 2142,
@@ -14664,7 +16553,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MFSL",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -14745,7 +16634,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 171,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MOTHERSON": {
     "security_id": 25510,
@@ -14769,7 +16672,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MOTHERSON",
     "strike_step": 1,
     "trailing_mult_buy": 1.5,
@@ -14850,7 +16753,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2116,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MPHASIS": {
     "security_id": 4503,
@@ -14874,7 +16791,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MPHASIS",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -14955,7 +16872,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 109,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "MUTHOOTFIN": {
     "security_id": 23650,
@@ -14979,7 +16910,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "MUTHOOTFIN",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -15060,7 +16991,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 89,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NAUKRI": {
     "security_id": 13751,
@@ -15084,7 +17029,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NAUKRI",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -15165,7 +17110,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 198,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NBCC": {
     "security_id": 31415,
@@ -15189,7 +17148,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NBCC",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -15270,7 +17229,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2991,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NESTLEIND": {
     "security_id": 17963,
@@ -15294,7 +17267,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NESTLEIND",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -15375,7 +17348,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 179,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NHPC": {
     "security_id": 17400,
@@ -15399,7 +17386,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NHPC",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -15480,7 +17467,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 3268,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NMDC": {
     "security_id": 15332,
@@ -15504,7 +17505,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NMDC",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -15585,7 +17586,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 2927,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NUVAMA": {
     "security_id": 18721,
@@ -15609,7 +17624,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NUVAMA",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -15690,7 +17705,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 141,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "NYKAA": {
     "security_id": 6545,
@@ -15709,7 +17738,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "NYKAA",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -15790,7 +17819,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 733,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "OBEROIRLTY": {
     "security_id": 20242,
@@ -15814,7 +17857,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "OBEROIRLTY",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -15895,7 +17938,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 139,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "OFSS": {
     "security_id": 10738,
@@ -15919,7 +17976,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "OFSS",
     "strike_step": 100,
     "trailing_mult_buy": 0.7,
@@ -16000,7 +18057,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 22,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "OIL": {
     "security_id": 17438,
@@ -16024,7 +18095,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "OIL",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -16105,7 +18176,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 502,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ONGC": {
     "security_id": 2475,
@@ -16124,7 +18209,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ONGC",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -16205,7 +18290,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1061,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PETRONET": {
     "security_id": 11351,
@@ -16229,7 +18328,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PETRONET",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -16310,7 +18409,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 875,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PFC": {
     "security_id": 14299,
@@ -16334,7 +18447,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PFC",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -16415,7 +18528,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 714,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PGEL": {
     "security_id": 25358,
@@ -16434,7 +18561,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PGEL",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -16515,7 +18642,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 461,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PHOENIXLTD": {
     "security_id": 14552,
@@ -16539,7 +18680,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PHOENIXLTD",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -16620,7 +18761,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 132,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PIDILITIND": {
     "security_id": 2664,
@@ -16644,7 +18799,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PIDILITIND",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -16725,7 +18880,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 159,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PIIND": {
     "security_id": 24184,
@@ -16749,7 +18918,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PIIND",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -16830,7 +18999,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 105,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PNBHOUSING": {
     "security_id": 18908,
@@ -16849,7 +19032,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PNBHOUSING",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -16930,7 +19113,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 218,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "POLICYBZR": {
     "security_id": 6656,
@@ -16954,7 +19151,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "POLICYBZR",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -17035,7 +19232,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 139,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "POLYCAB": {
     "security_id": 9590,
@@ -17059,7 +19270,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "POLYCAB",
     "strike_step": 100,
     "trailing_mult_buy": 0.7,
@@ -17140,7 +19351,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 30,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "POWERGRID": {
     "security_id": 14977,
@@ -17159,7 +19384,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "POWERGRID",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -17240,7 +19465,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 940,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PPLPHARMA": {
     "security_id": 11571,
@@ -17264,7 +19503,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PPLPHARMA",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -17345,7 +19584,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1144,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "PRESTIGE": {
     "security_id": 20302,
@@ -17369,7 +19622,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "PRESTIGE",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -17450,7 +19703,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 162,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "RELIANCE": {
     "security_id": 2885,
@@ -17474,7 +19741,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "RELIANCE",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -17555,7 +19822,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 194,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "RVNL": {
     "security_id": 9552,
@@ -17574,7 +19855,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "RVNL",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -17655,7 +19936,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1208,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SAIL": {
     "security_id": 2963,
@@ -17679,7 +19974,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SAIL",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -17760,7 +20055,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1341,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SAMMAANCAP": {
     "security_id": 30125,
@@ -17784,7 +20093,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SAMMAANCAP",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -17865,7 +20174,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1664,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SBICARD": {
     "security_id": 17971,
@@ -17889,7 +20212,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SBICARD",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -17970,7 +20293,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 374,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SBILIFE": {
     "security_id": 21808,
@@ -17994,7 +20331,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SBILIFE",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -18075,7 +20412,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 149,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SBIN": {
     "security_id": 3045,
@@ -18094,7 +20445,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SBIN",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -18175,7 +20526,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 249,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SHREECEM": {
     "security_id": 3103,
@@ -18199,7 +20564,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SHREECEM",
     "strike_step": 250,
     "trailing_mult_buy": 0.7,
@@ -18280,7 +20645,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 11,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SHRIRAMFIN": {
     "security_id": 4306,
@@ -18304,7 +20683,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SHRIRAMFIN",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -18385,7 +20764,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 244,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SIEMENS": {
     "security_id": 3150,
@@ -18409,7 +20802,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SIEMENS",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -18490,7 +20883,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 63,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SOLARINDS": {
     "security_id": 13332,
@@ -18514,7 +20921,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SOLARINDS",
     "strike_step": 250,
     "trailing_mult_buy": 0.7,
@@ -18595,7 +21002,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 11,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SONACOMS": {
     "security_id": 4684,
@@ -18619,7 +21040,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SONACOMS",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -18700,7 +21121,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 313,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SRF": {
     "security_id": 3273,
@@ -18724,7 +21159,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SRF",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -18805,7 +21240,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 100,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SUNPHARMA": {
     "security_id": 3351,
@@ -18829,7 +21278,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SUNPHARMA",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -18910,7 +21359,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 134,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SUPREMEIND": {
     "security_id": 3363,
@@ -18934,7 +21397,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SUPREMEIND",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -19015,7 +21478,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 71,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "SYNGENE": {
     "security_id": 10243,
@@ -19039,7 +21516,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "SYNGENE",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -19120,7 +21597,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 646,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TATACONSUM": {
     "security_id": 3432,
@@ -19144,7 +21635,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TATACONSUM",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -19225,7 +21716,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 249,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TATAELXSI": {
     "security_id": 3411,
@@ -19249,7 +21754,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TATAELXSI",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -19330,7 +21835,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 74,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TATAPOWER": {
     "security_id": 3426,
@@ -19349,7 +21868,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TATAPOWER",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -19430,7 +21949,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 679,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TATASTEEL": {
     "security_id": 3499,
@@ -19454,7 +21987,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TATASTEEL",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -19535,7 +22068,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1329,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TATATECH": {
     "security_id": 20293,
@@ -19559,7 +22106,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TATATECH",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -19640,7 +22187,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 318,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TCS": {
     "security_id": 11536,
@@ -19664,7 +22225,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TCS",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -19745,7 +22306,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 113,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TECHM": {
     "security_id": 13538,
@@ -19769,7 +22344,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TECHM",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -19850,7 +22425,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 166,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TIINDIA": {
     "security_id": 312,
@@ -19874,7 +22463,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TIINDIA",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -19955,7 +22544,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 93,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TITAN": {
     "security_id": 3506,
@@ -19979,7 +22582,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TITAN",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -20060,7 +22663,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 50,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TMPV": {
     "security_id": 3456,
@@ -20079,7 +22696,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TMPV",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -20160,7 +22777,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 823,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TORNTPHARM": {
     "security_id": 3518,
@@ -20184,7 +22815,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TORNTPHARM",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -20265,7 +22896,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 51,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TORNTPOWER": {
     "security_id": 13786,
@@ -20289,7 +22934,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TORNTPOWER",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -20370,7 +23015,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 192,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TRENT": {
     "security_id": 1964,
@@ -20394,7 +23053,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TRENT",
     "strike_step": 50,
     "trailing_mult_buy": 0.7,
@@ -20475,7 +23134,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 88,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "TVSMOTOR": {
     "security_id": 8479,
@@ -20499,7 +23172,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "TVSMOTOR",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -20580,7 +23253,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 60,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ULTRACEMCO": {
     "security_id": 11532,
@@ -20604,7 +23291,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ULTRACEMCO",
     "strike_step": 100,
     "trailing_mult_buy": 0.7,
@@ -20685,7 +23372,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 23,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "UNOMINDA": {
     "security_id": 14154,
@@ -20709,7 +23410,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "UNOMINDA",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -20790,7 +23491,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 203,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "VBL": {
     "security_id": 18921,
@@ -20814,7 +23529,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "VBL",
     "strike_step": 5,
     "trailing_mult_buy": 0.7,
@@ -20895,7 +23610,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 617,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "VEDL": {
     "security_id": 3063,
@@ -20919,7 +23648,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "VEDL",
     "strike_step": 10,
     "trailing_mult_buy": 0.7,
@@ -21000,7 +23729,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 912,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "VOLTAS": {
     "security_id": 3718,
@@ -21024,7 +23767,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "VOLTAS",
     "strike_step": 20,
     "trailing_mult_buy": 0.7,
@@ -21105,7 +23848,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 219,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "WIPRO": {
     "security_id": 3787,
@@ -21124,7 +23881,7 @@
     "num_strikes": 1,
     "gatekeeper_enabled": 1,
     "gatekeeper_single_strike": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "WIPRO",
     "strike_step": 2.5,
     "trailing_mult_buy": 0.7,
@@ -21205,7 +23962,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 1495,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "YESBANK": {
     "security_id": 11915,
@@ -21229,7 +24000,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "YESBANK",
     "strike_step": 1,
     "trailing_mult_buy": 0.7,
@@ -21310,7 +24081,21 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 11151,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   },
   "ZYDUSLIFE": {
     "security_id": 7929,
@@ -21334,7 +24119,7 @@
     "gatekeeper_volume_multiplier": 1.5,
     "gatekeeper_oi_min_change_pct": 1.5,
     "block_expiry_day_trades": 1,
-    "enabled": 0,
+    "enabled": 1,
     "fno_prefix": "ZYDUSLIFE",
     "strike_step": 10,
     "trailing_mult_buy": 1.5,
@@ -21415,6 +24200,20 @@
     "allowed_actions": [
       "BUY",
       "SELL"
-    ]
+    ],
+    "strategy_overrides": {
+      "Strategy_23": {
+        "execution_mode": "STOCK",
+        "stock_qty_override": 221,
+        "exit_mode": "SWING",
+        "swing_window_size": 10,
+        "sl_buffer_atr_mult": 0.1,
+        "tp_mult_buy": 12.0,
+        "trailing_mult_buy": 1.5,
+        "carry_forward": true,
+        "max_active": 1,
+        "daily_limit": 1
+      }
+    }
   }
 }

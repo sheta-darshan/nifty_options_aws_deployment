@@ -144,7 +144,28 @@ class Strategy3(BaseStrategy):
         df['TM_Long_Trend'] = df['TM_Long_Trend'].fillna(False).astype(bool)
         df['TM_Short_Trend'] = df['TM_Short_Trend'].fillna(False).astype(bool)
 
-        # 5. Time Filter & Midday European open chop exclusion
+        # 5. Higher-Timeframe (15-min) Macro Trend for Conviction Sizing
+        df_15min = df.resample('15min').agg({
+            'open': 'first',
+            'high': 'max',
+            'low': 'min',
+            'close': 'last'
+        }).dropna()
+        if len(df_15min) >= 15:
+            st_15m = ta.supertrend(df_15min['high'], df_15min['low'], df_15min['close'], length=10, multiplier=2.5)
+            if st_15m is not None:
+                st_dir_col = [c for c in st_15m.columns if c.startswith('SUPERTd_')][0]
+                df_15min['ST_15m_Dir'] = st_15m[st_dir_col].shift(1)
+            else:
+                df_15min['ST_15m_Dir'] = 0
+        else:
+            df_15min['ST_15m_Dir'] = 0
+
+        df = df.drop(columns=[c for c in ['ST_15m_Dir'] if c in df.columns])
+        df = df.join(df_15min[['ST_15m_Dir']], how='left')
+        df['ST_15m_Dir'] = df['ST_15m_Dir'].ffill().fillna(0)
+
+        # 6. Time Filter & Midday European open chop exclusion
         start_time_str = self.params.get("START_TIME", "09:25")
         end_time_str = self.params.get("END_TIME", "14:45")
         time_mask = (df.index.time >= pd.to_datetime(start_time_str).time()) & \
@@ -157,18 +178,23 @@ class Strategy3(BaseStrategy):
                                (df.index.time <= pd.to_datetime(no_trade_end).time())
             time_mask = time_mask & (~midday_chop_mask)
         
-        # Signals (1m Breakout)
+        # 7. Signals (1m Breakout)
         df['Signal'] = 0
         df['Strat1_Signal'] = 0
         df['Strat2_Signal'] = 0
         df['TM_Signal'] = 0
         df['S4_Signal'] = 0
+        df['Conviction'] = 1.0
         tm_buy = (df['TM_Long_Trend'] == True) & (df['close'] > df['TM_Sig_High']) & time_mask
         tm_sell = (df['TM_Short_Trend'] == True) & (df['close'] < df['TM_Sig_Low']) & time_mask
         df.loc[tm_buy, 'Signal'] = 1
         df.loc[tm_sell, 'Signal'] = -1
         df.loc[tm_buy, 'TM_Signal'] = 1
         df.loc[tm_sell, 'TM_Signal'] = -1
+
+        # High Conviction when 15m Supertrend aligns
+        df.loc[tm_buy & (df['ST_15m_Dir'] == 1), 'Conviction'] = 2.0
+        df.loc[tm_sell & (df['ST_15m_Dir'] == -1), 'Conviction'] = 2.0
         
         df['Signal_Source'] = "None"
         df.loc[(df['TM_Signal'] != 0), 'Signal_Source'] = "Strategy 3 (TM)"

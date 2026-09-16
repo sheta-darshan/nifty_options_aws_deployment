@@ -204,7 +204,7 @@ class SimulationEngine:
             # Apply strategy-specific overrides if active
             strat_name = self.strategy.name if self.strategy else getattr(self.config, 'active_strategy', None)
             if not strat_name:
-                for i in range(1, 23):
+                for i in range(1, 24):
                     if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
                         strat_name = f"Strategy_{i}"
                         break
@@ -2256,7 +2256,24 @@ class SimulationEngine:
                 
             spot_sl_price = 0.0
             spot_target_price = 0.0
-        elif exit_mode == "POINTS":
+
+        # Check conviction score for dynamic target and sizing
+        conv_score = 1.0
+        if self.inst_config.get('enable_dynamic_conviction', False) and self.df_spot is not None and 'Conviction' in self.df_spot.columns:
+            if timestamp in self.df_spot.index:
+                c_val = self.df_spot.loc[timestamp, 'Conviction']
+                if isinstance(c_val, pd.Series):
+                    c_val = c_val.iloc[0]
+                if pd.notna(c_val) and float(c_val) >= 1.5:
+                    conv_score = float(c_val)
+                else:
+                    loc = self.df_spot.index.get_loc(timestamp)
+                    if isinstance(loc, int) and loc > 0:
+                        prev_c_val = self.df_spot['Conviction'].iloc[loc - 1]
+                        if pd.notna(prev_c_val) and float(prev_c_val) >= 1.5:
+                            conv_score = float(prev_c_val)
+
+        if exit_mode == "POINTS":
             # Fixed points-based Stop Loss, Target, and Trailing stops calculated on traded contract
             points_sl_buy = self.inst_config.get('points_sl_buy', 0)
             points_target_buy = self.inst_config.get('points_target_buy', 0)
@@ -2264,6 +2281,17 @@ class SimulationEngine:
             points_sl_sell = self.inst_config.get('points_sl_sell', 0)
             points_target_sell = self.inst_config.get('points_target_sell', 0)
             points_trail_sell = self.inst_config.get('points_trail_sell', 0)
+
+            # Dynamic Target on High Conviction
+            if conv_score >= 1.5:
+                if not is_short:
+                    target_high = self.inst_config.get('points_target_high_conviction', self.inst_config.get('points_target_buy_high_conviction'))
+                    if target_high is not None:
+                        points_target_buy = float(target_high)
+                else:
+                    target_high = self.inst_config.get('points_target_high_conviction', self.inst_config.get('points_target_sell_high_conviction'))
+                    if target_high is not None:
+                        points_target_sell = float(target_high)
             
             if not is_short:
                 sl_price = float(actual_entry - points_sl_buy) if points_sl_buy > 0 else 0.0
@@ -2400,7 +2428,14 @@ class SimulationEngine:
             breakeven_mult = float(self.inst_config.get("atr_be_buy" if not is_short else "atr_be_sell", 0.0))
 
         if qty is None:
-            qty = lot_size * (self.inst_config.get('num_lots_sell', 1) if is_short else self.inst_config.get('num_lots_buy', 1))
+            if self.inst_config.get('enable_dynamic_conviction', False) and is_short:
+                if conv_score >= 1.5:
+                    num_lots = self.inst_config.get('num_lots_high_conviction', self.inst_config.get('num_lots_sell', 1))
+                else:
+                    num_lots = self.inst_config.get('num_lots_sell', 1)
+            else:
+                num_lots = self.inst_config.get('num_lots_sell', 1) if is_short else self.inst_config.get('num_lots_buy', 1)
+            qty = lot_size * num_lots
 
         # Determine market regime at entry
         adx_col = None
@@ -2600,9 +2635,14 @@ class SimulationEngine:
 
             # 3. Check Breakeven Trigger
             be_mult = trade.get("Breakeven_Mult", 0.0)
-            if be_mult > 0.0 and not trade.get("Breakeven_Triggered", False) and trade.get("Initial_SL_Points", 0.0) > 0.0:
-                trigger_level = trade["Entry_Price"] + (trade["Initial_SL_Points"] * be_mult)
-                if high >= trigger_level:
+            if be_mult > 0.0 and not trade.get("Breakeven_Triggered", False):
+                if trade.get("exit_mode") == "POINTS":
+                    trigger_level = trade["Entry_Price"] + be_mult
+                elif trade.get("Initial_SL_Points", 0.0) > 0.0:
+                    trigger_level = trade["Entry_Price"] + (trade["Initial_SL_Points"] * be_mult)
+                else:
+                    trigger_level = None
+                if trigger_level is not None and high >= trigger_level:
                     trade["SL_Price"] = max(trade["SL_Price"], trade["Entry_Price"])
                     trade["Breakeven_Triggered"] = True
 
@@ -2643,9 +2683,14 @@ class SimulationEngine:
 
             # 3. Check Breakeven Trigger
             be_mult = trade.get("Breakeven_Mult", 0.0)
-            if be_mult > 0.0 and not trade.get("Breakeven_Triggered", False) and trade.get("Initial_SL_Points", 0.0) > 0.0:
-                trigger_level = trade["Entry_Price"] - (trade["Initial_SL_Points"] * be_mult)
-                if low <= trigger_level:
+            if be_mult > 0.0 and not trade.get("Breakeven_Triggered", False):
+                if trade.get("exit_mode") == "POINTS":
+                    trigger_level = trade["Entry_Price"] - be_mult
+                elif trade.get("Initial_SL_Points", 0.0) > 0.0:
+                    trigger_level = trade["Entry_Price"] - (trade["Initial_SL_Points"] * be_mult)
+                else:
+                    trigger_level = None
+                if trigger_level is not None and low <= trigger_level:
                     # PCT mode: lock SL at entry + buffer (e.g. entry * 1.02) so the SL sits
                     # just above entry — guarantees near-zero loss if SL is subsequently hit.
                     pct_be_buffer = float(self.inst_config.get("pct_be_buffer_sell", 0.0)) if trade.get("exit_mode") == "PCT" else 0.0

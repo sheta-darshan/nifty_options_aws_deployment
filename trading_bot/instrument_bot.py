@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import pandas_ta as ta
 from datetime import datetime, timedelta, time as dt_time
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Optional, List, Dict, Tuple, Union, Any
 
 from trading_bot.config import Config
 from trading_bot.api_wrapper import DhanAPIWrapper, safe_int
@@ -30,6 +30,7 @@ from trading_bot.data_pipeline import (
     get_trade_actions,
     fetch_candle_with_retry,
     get_today_trade_count,
+    get_today_sl_count,
     choose_calendar_spread_v2
 )
 
@@ -69,21 +70,28 @@ class InstrumentBot(threading.Thread):
         
         # Restore Daily Count from Disk (Per Strategy, Per Account)
         self.daily_trade_counts = {}
-        for i in range(1, 23):
+        self.daily_sl_counts = {}
+        for i in range(1, 24):
             strat_name = f"Strategy_{i}"
             restored = get_today_trade_count(config.TRADE_LOG_CSV, instrument_name, config.TIMEZONE, strategy_name=strat_name)
             self.daily_trade_counts[strat_name] = restored if isinstance(restored, dict) else {}
+            restored_sl = get_today_sl_count(config.TRADE_LOG_CSV, instrument_name, config.TIMEZONE, strategy_name=strat_name)
+            self.daily_sl_counts[strat_name] = restored_sl if isinstance(restored_sl, dict) else {}
         
         self.active_trades = 0
         self.poll_offset = 0  # Default 0s
         self.consecutive_failures = 0
+        try:
+            self.current_trading_day = datetime.now(config.TIMEZONE).date()
+        except Exception:
+            self.current_trading_day = datetime.now().date()
         
         # Determine Instrument Constraints
         self.MAX_ACTIVE = self.config.INSTRUMENTS[self.name].get('max_active', 1)
         self.DAILY_LIMIT = self.config.INSTRUMENTS[self.name].get('daily_limit', 5)
         self.TYPE = self.config.INSTRUMENTS[self.name].get('type', 'INDEX') # INDEX or STOCK
         
-        self.logger.info(f"[{self.name}] Initialized. Type={self.TYPE}, MaxRunning={self.MAX_ACTIVE}, DailyLimit={self.DAILY_LIMIT}, RestoredCounts={self.daily_trade_counts}")
+        self.logger.info(f"[{self.name}] Initialized. Type={self.TYPE}, MaxRunning={self.MAX_ACTIVE}, DailyLimit={self.DAILY_LIMIT}, RestoredCounts={self.daily_trade_counts}, RestoredSLCounts={self.daily_sl_counts}")
 
     def get_strategy_instrument_config(self, strategy_name: str) -> dict:
         """
@@ -182,6 +190,20 @@ class InstrumentBot(threading.Thread):
                 self.logger.info(f"[{self.name}] [STAGGER] Spacing order placement. Sleeping for {sleep_time:.2f}s...")
                 time.sleep(sleep_time)
             self.state.last_order_timestamp = time.time()
+
+    def _is_margin_rejection(self, reason_str: str, resp_obj: Any = None) -> bool:
+        """
+        Check if an order failure or rejection was caused by insufficient funds / margin shortfall.
+        """
+        text = str(reason_str or '').lower()
+        if isinstance(resp_obj, dict):
+            for v in resp_obj.values():
+                if isinstance(v, (str, int, float)):
+                    text += " " + str(v).lower()
+                elif isinstance(v, dict):
+                    text += " " + " ".join(str(sub_v).lower() for sub_v in v.values() if isinstance(sub_v, (str, int, float)))
+        margin_keywords = ['margin', 'insufficient', 'funds', 'shortfall', 'rms:rule', 'balance', 'limit exceeded', 'not enough balance']
+        return any(k in text for k in margin_keywords)
 
     def _validate_gatekeeper_live(self, target_strike, option_type_str, is_short=False) -> bool:
         """
@@ -454,7 +476,18 @@ class InstrumentBot(threading.Thread):
 
         while self.running:
             try:
-                now = datetime.now(self.config.TIMEZONE)
+                try:
+                    now = datetime.now(self.config.TIMEZONE)
+                except Exception:
+                    now = datetime.now()
+                today_date = now.date()
+                if self.current_trading_day != today_date:
+                    self.current_trading_day = today_date
+                    for i in range(1, 24):
+                        strat_name = f"Strategy_{i}"
+                        self.daily_trade_counts[strat_name] = {}
+                        self.daily_sl_counts[strat_name] = {}
+                    self.logger.info(f"[{self.name}] New trading day ({today_date}). Daily trade and SL counts reset.")
                 current_time_only = now.time()
 
                 # 1. Market Hours Check
@@ -621,7 +654,7 @@ class InstrumentBot(threading.Thread):
             
             # Find active strategies
             active_strategies = []
-            for i in range(1, 23):
+            for i in range(1, 24):
                 if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
                     active_strategies.append(f"Strategy_{i}")
             if not active_strategies:
@@ -644,6 +677,15 @@ class InstrumentBot(threading.Thread):
                     continue
                 
                 self.logger.info(f"!!! [{self.name}] SIGNAL: {signal.upper()} ({s_name}) !!!")
+                if self.alert_manager:
+                    self.alert_manager.send_alert(
+                        f"📡 *Signal Detected*\n"
+                        f"🔹 *Instrument:* `{self.name}`\n"
+                        f"🔹 *Strategy:* `{s_name}`\n"
+                        f"🔹 *Signal:* `{signal.upper()}`\n"
+                        f"🔹 *Time:* `{current_candle_time.strftime('%H:%M')}` | *Close:* `{df_1min['close'].iloc[-1]:.2f}`",
+                        header="Signal Alert"
+                    )
                 self._handle_signal(signal, atr_val, s_name)
         
         # Cycle Performance Log
@@ -751,7 +793,7 @@ class InstrumentBot(threading.Thread):
         # Check Expiry Day block filter
         if inst_config.get("block_expiry_day_trades", 0) == 1:
             # Only block if the signal translates to buying options (decay is bad for buyers, good for sellers)
-            ce_action, pe_action = get_trade_actions(signal, self.config, self.logger)
+            ce_action, pe_action = get_trade_actions(signal, self.config, self.logger, leg_mode_override=inst_config.get('LEG_MODE'))
             is_buying_trade = (ce_action == 'BUY' or pe_action == 'BUY')
             
             if is_buying_trade:
@@ -767,7 +809,7 @@ class InstrumentBot(threading.Thread):
                 except Exception as e:
                     self.logger.error(f"[{self.name}] Error checking expiry block: {e}")
 
-        # 1. Early Daily Limit Check (Per Account, Per Strategy) - Saves API calls
+        # 1. Early Daily Limit & Max Daily SL Check (Per Account, Per Strategy) - Saves API calls
         accounts = self.order_manager.get_accounts()
         strat_config = self.get_strategy_instrument_config(source)
         all_limited = True
@@ -779,14 +821,22 @@ class InstrumentBot(threading.Thread):
                 'daily_limit_per_strategy',
                 overrides.get('daily_limit', acc_config.get('daily_limit', strat_config.get('daily_limit_per_strategy', strat_config.get('daily_limit', self.DAILY_LIMIT))))
             )
+            acc_max_sl = overrides.get(
+                'max_daily_sl_per_strategy',
+                overrides.get('max_daily_sl', acc_config.get('max_daily_sl', strat_config.get('max_daily_sl_per_strategy', strat_config.get('max_daily_sl', inst_config.get('max_daily_sl', None)))))
+            )
             
             strat_counts = self.daily_trade_counts.setdefault(source, {})
-            if strat_counts.get(acc_name, 0) < acc_daily_limit:
+            strat_sls = self.daily_sl_counts.setdefault(source, {})
+            trade_count = strat_counts.get(acc_name, 0)
+            sl_count = strat_sls.get(acc_name, 0)
+            
+            if trade_count < acc_daily_limit and (acc_max_sl is None or sl_count < acc_max_sl):
                 all_limited = False
                 break
         
         if all_limited:
-            self.logger.warning(f"[{self.name}] [SKIP] Signal ignored. All accounts have reached daily limit for {source}.")
+            self.logger.warning(f"[{self.name}] [SKIP] Signal ignored. All accounts have reached daily limit or max daily SL for {source}.")
             return
 
         self.logger.info(f"[{self.name}] Executing {signal} from {source}...")
@@ -843,6 +893,17 @@ class InstrumentBot(threading.Thread):
                 if strat_counts.get(acc_name, 0) >= acc_daily_limit:
                     self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached for {source}.")
                     continue
+                
+                # Check Max Daily SL Circuit Breaker
+                acc_max_sl = overrides.get(
+                    'max_daily_sl_per_strategy',
+                    overrides.get('max_daily_sl', acc_config.get('max_daily_sl', strat_config.get('max_daily_sl_per_strategy', strat_config.get('max_daily_sl', inst_config.get('max_daily_sl', None)))))
+                )
+                if acc_max_sl is not None:
+                    strat_sls = self.daily_sl_counts.setdefault(source, {})
+                    if strat_sls.get(acc_name, 0) >= acc_max_sl:
+                        self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Max Daily SL Reached for {source} ({strat_sls.get(acc_name, 0)}/{acc_max_sl}). Circuit breaker active.")
+                        continue
                     
                 try:
                     active_trades = self._count_my_active_positions(None, "STOCK", strategy_name=source, account_name=acc_name)
@@ -888,7 +949,7 @@ class InstrumentBot(threading.Thread):
             self._execute_calendar_spread_strategy(signal, atr_val, source)
             return
 
-        if leg_mode == "SELL" or strat_mode in ("2", "OPTION_WRITING", "DIRECT_SELL"):
+        if strat_mode in ("2", "OPTION_WRITING", "DIRECT_SELL"):
             if self.df_spot is None or self.df_spot.empty:
                 self.logger.error(f"[{self.name}] [{source}] self.df_spot is empty/None! Cannot resolve spot price for option selling.")
                 return
@@ -901,13 +962,13 @@ class InstrumentBot(threading.Thread):
             return
         
         # Existing Options Logic
-        ce_items, pe_items = choose_option_instruments(self.data_api, signal, self.config.INSTRUMENTS[self.name], self.logger)
+        ce_items, pe_items = choose_option_instruments(self.data_api, signal, inst_config, self.logger)
         
         if not ce_items or not pe_items:
             self.logger.warning(f"[{self.name}] [SKIP] Strategy '{source}' skipped: Option instruments could not be resolved (CE count: {len(ce_items)}, PE count: {len(pe_items)}). Stale or missing security master cache?")
             return
             
-        ce_action, pe_action = get_trade_actions(signal, self.config, self.logger)
+        ce_action, pe_action = get_trade_actions(signal, self.config, self.logger, leg_mode_override=leg_mode)
         
         # Gate Keeper Validation Check
         if inst_config.get("gatekeeper_enabled", 0) == 1:
@@ -979,6 +1040,17 @@ class InstrumentBot(threading.Thread):
                  if strat_counts.get(acc_name, 0) >= acc_daily_limit:
                      self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached for {source}.")
                      continue
+                 
+                 # Check Max Daily SL Circuit Breaker
+                 acc_max_sl = overrides.get(
+                     'max_daily_sl_per_strategy',
+                     overrides.get('max_daily_sl', acc_config.get('max_daily_sl', strat_config.get('max_daily_sl_per_strategy', strat_config.get('max_daily_sl', inst_config.get('max_daily_sl', None)))))
+                 )
+                 if acc_max_sl is not None:
+                     strat_sls = self.daily_sl_counts.setdefault(source, {})
+                     if strat_sls.get(acc_name, 0) >= acc_max_sl:
+                         self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Max Daily SL Reached for {source} ({strat_sls.get(acc_name, 0)}/{acc_max_sl}). Circuit breaker active.")
+                         continue
                      
                  try:
                      ce_count = self._count_my_active_positions(None, "CE", strategy_name=source, account_name=acc_name)
@@ -1506,6 +1578,17 @@ class InstrumentBot(threading.Thread):
             if strat_counts.get(acc_name, 0) >= acc_daily_limit:
                 self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Daily Limit Reached for {source}.")
                 continue
+            
+            # Check Max Daily SL Circuit Breaker
+            acc_max_sl = overrides.get(
+                'max_daily_sl_per_strategy',
+                overrides.get('max_daily_sl', acc_config.get('max_daily_sl', strat_config.get('max_daily_sl_per_strategy', strat_config.get('max_daily_sl', inst_config.get('max_daily_sl', None)))))
+            )
+            if acc_max_sl is not None:
+                strat_sls = self.daily_sl_counts.setdefault(source, {})
+                if strat_sls.get(acc_name, 0) >= acc_max_sl:
+                    self.logger.warning(f"[{self.name}] [SKIP] Account '{acc_name}' Max Daily SL Reached for {source} ({strat_sls.get(acc_name, 0)}/{acc_max_sl}). Circuit breaker active.")
+                    continue
                 
             try:
                 ce_count = self._count_my_active_positions(None, "CE", strategy_name=source, account_name=acc_name)
@@ -1871,6 +1954,34 @@ class InstrumentBot(threading.Thread):
                 points_target_sell = float(inst_config.get("points_target_sell", 0))
                 points_trail_sell = float(inst_config.get("points_trail_sell", 0))
                 
+                # Dynamic High Conviction Target Override
+                if inst_config.get('enable_dynamic_conviction', False) and self.df_spot is not None and not self.df_spot.empty:
+                    clean_source = source.split(" (")[0].replace(" ", "_")
+                    conv_col = f'Conviction_{clean_source}' if f'Conviction_{clean_source}' in self.df_spot.columns else (
+                        f'Conviction_{source}' if f'Conviction_{source}' in self.df_spot.columns else (
+                            'Conviction' if 'Conviction' in self.df_spot.columns else None
+                        )
+                    )
+                    conv_score = 1.0
+                    if conv_col:
+                        c_val = self.df_spot[conv_col].iloc[-1]
+                        if pd.notna(c_val) and float(c_val) >= 1.5:
+                            conv_score = float(c_val)
+                        elif len(self.df_spot) >= 2:
+                            prev_c_val = self.df_spot[conv_col].iloc[-2]
+                            if pd.notna(prev_c_val) and float(prev_c_val) >= 1.5:
+                                conv_score = float(prev_c_val)
+                                
+                    if conv_score >= 1.5:
+                        target_high = inst_config.get("points_target_high_conviction", inst_config.get("points_target_sell_high_conviction" if action == "SELL" else "points_target_buy_high_conviction"))
+                        if target_high is not None:
+                            if action == "SELL":
+                                points_target_sell = float(target_high)
+                                self.logger.info(f"[{self.name}] [{source}] High Conviction: Dynamic Target expanded to {points_target_sell} pts!")
+                            else:
+                                points_target_buy = float(target_high)
+                                self.logger.info(f"[{self.name}] [{source}] High Conviction: Dynamic Target expanded to {points_target_buy} pts!")
+                
                 if action == 'BUY':
                     opt_sl_price = float(ltp - points_sl_buy) if points_sl_buy > 0 else 0.0
                     opt_target_price = float(ltp + points_target_buy) if points_target_buy > 0 else 999999.0
@@ -1964,12 +2075,41 @@ class InstrumentBot(threading.Thread):
                 stock_qty_override = inst_config.get('stock_qty_override')
                 if stock_qty_override is not None:
                     base_qty = int(stock_qty_override)
+                    unscaled_qty = base_qty
+                    unit_lot_size = 1
                 else:
                     lots = inst_config.get(f'num_lots_{action.lower()}', 1)
-                    base_qty = inst_config.get('lot_size', 1) * lots
+                    unit_lot_size = inst_config.get('lot_size', 1)
+                    base_qty = unit_lot_size * lots
+                    unscaled_qty = base_qty
             else:
-                lots = inst_config.get(f'num_lots_{action.lower()}', 1)
-                base_qty = inst_config['lot_size'] * lots
+                base_lots = inst_config.get(f'num_lots_{action.lower()}', 1)
+                lots = base_lots
+                # Dynamic Conviction Sizing for Option Strategies (e.g. Strategy 22 / Strategy 3)
+                if inst_config.get('enable_dynamic_conviction', False) and action == 'SELL' and self.df_spot is not None and not self.df_spot.empty:
+                    conv_score = 1.0
+                    clean_source = source.split(" (")[0].replace(" ", "_")
+                    conv_col = f'Conviction_{clean_source}' if f'Conviction_{clean_source}' in self.df_spot.columns else (
+                        f'Conviction_{source}' if f'Conviction_{source}' in self.df_spot.columns else (
+                            'Conviction' if 'Conviction' in self.df_spot.columns else None
+                        )
+                    )
+                    if conv_col:
+                        c_val = self.df_spot[conv_col].iloc[-1]
+                        if pd.notna(c_val) and float(c_val) >= 1.5:
+                            conv_score = float(c_val)
+                        elif len(self.df_spot) >= 2:
+                            prev_c_val = self.df_spot[conv_col].iloc[-2]
+                            if pd.notna(prev_c_val) and float(prev_c_val) >= 1.5:
+                                conv_score = float(prev_c_val)
+                                
+                    if conv_score >= 1.5:
+                        lots = inst_config.get('num_lots_high_conviction', lots)
+                        self.logger.info(f"[{self.name}] [{source}] High Conviction Detected ({conv_col}={conv_score:.1f})! Sizing scaled from {inst_config.get('num_lots_sell', 1)} to {lots} lots.")
+
+                unit_lot_size = inst_config.get('lot_size', 1)
+                unscaled_qty = unit_lot_size * base_lots
+                base_qty = unit_lot_size * lots
             
             # Get List of Accounts
             if accounts is None:
@@ -2040,11 +2180,14 @@ class InstrumentBot(threading.Thread):
                     if execution_mode == 'STOCK' and inst_config.get('stock_qty_override') is not None:
                         qty_unit = inst_config.get('stock_qty_override', inst_config.get('lot_size', 1))
                         acc_qty = int(qty_unit * override_lots)
+                        acc_base_qty = acc_qty
                     else:
                         acc_qty = int(self.config.INSTRUMENTS[self.name]['lot_size'] * override_lots)
+                        acc_base_qty = acc_qty
                 else:
                     multiplier = float(acc_config.get('global_multiplier', 1.0))
                     acc_qty = max(1, int(base_qty * multiplier)) if base_qty > 0 else 0
+                    acc_base_qty = max(1, int(unscaled_qty * multiplier)) if unscaled_qty > 0 else acc_qty
                 
                 if acc_qty == 0:
                     continue
@@ -2060,14 +2203,27 @@ class InstrumentBot(threading.Thread):
                 raw_limit = (ltp + buffer_points) if action == 'BUY' else (ltp - buffer_points)
                 limit_price = round(raw_limit * 20) / 20.0 # Snap to Indian market 0.05 tick size
                 
-                api_opt_tp = 0.0 if local_exit_monitoring else opt_tp
-                api_opt_sl = 0.0 if local_exit_monitoring else opt_sl
-                api_opt_trail = 0.0 if local_exit_monitoring else opt_trail
+                broker_safety_sl = inst_config.get("broker_safety_sl", True)
+                if local_exit_monitoring and broker_safety_sl:
+                    # Option 3 (Crash-Proof Hybrid): Place Dhan Super Order with exchange-held Hard SL
+                    api_opt_tp = opt_tp
+                    api_opt_sl = opt_sl
+                    api_opt_trail = 0.0 # Local monitor dynamically moves SL to breakeven
+                elif local_exit_monitoring and not broker_safety_sl:
+                    api_opt_tp = 0.0
+                    api_opt_sl = 0.0
+                    api_opt_trail = 0.0
+                else:
+                    api_opt_tp = opt_tp
+                    api_opt_sl = opt_sl
+                    api_opt_trail = opt_trail
                 
                 eligible_dispatches.append({
                     'acc_name': acc_name,
                     'acc_api': acc_api,
                     'acc_qty': acc_qty,
+                    'base_qty': acc_base_qty,
+                    'lot_size': unit_lot_size,
                     'limit_price': limit_price,
                     'api_opt_tp': api_opt_tp,
                     'api_opt_sl': api_opt_sl,
@@ -2108,7 +2264,79 @@ class InstrumentBot(threading.Thread):
                     if future:
                         try:
                             resp = future.result(timeout=15)
-                            if resp:
+                            is_success = resp and not resp.get('failed', False) and resp.get('orderStatus') in ['PENDING', 'TRANSIT', 'TRADED', 'SUBMITTED', 'SUCCESS']
+                            
+                            if not is_success:
+                                reject_reason = "Order returned empty or rejected by broker"
+                                if isinstance(resp, dict):
+                                    reject_reason = (
+                                        resp.get('omsErrorDescription') or 
+                                        resp.get('remarks') or 
+                                        (resp.get('data', {}).get('omsErrorDescription') if isinstance(resp.get('data'), dict) else '') or 
+                                        resp.get('message') or
+                                        f"Status: {resp.get('orderStatus', 'FAILED')}"
+                                    )
+                                
+                                # Check for Graceful Margin Downsizing Fallback (Option 1)
+                                if self._is_margin_rejection(reject_reason, resp):
+                                    lot_unit = dispatch.get('lot_size', 1)
+                                    fallback_candidates = []
+                                    # Candidate 1: Base unscaled lots
+                                    if dispatch['acc_qty'] > dispatch.get('base_qty', 0) and dispatch.get('base_qty', 0) > 0:
+                                        fallback_candidates.append(dispatch['base_qty'])
+                                    # Candidate 2: 1 lot minimum viable position
+                                    if dispatch.get('base_qty', 0) > lot_unit and lot_unit not in fallback_candidates:
+                                        fallback_candidates.append(lot_unit)
+                                    elif dispatch['acc_qty'] > lot_unit and lot_unit not in fallback_candidates:
+                                        fallback_candidates.append(lot_unit)
+                                    
+                                    for fallback_qty in fallback_candidates:
+                                        orig_lots = max(1, dispatch['acc_qty'] // lot_unit)
+                                        fb_lots = max(1, fallback_qty // lot_unit)
+                                        self.logger.warning(
+                                            f"[{self.name}] [{clean_source}] [MARGIN FALLBACK] Order of {orig_lots} lots ({dispatch['acc_qty']} qty) "
+                                            f"rejected for '{acc_name}' due to margin shortfall ({reject_reason}). "
+                                            f"Immediately retrying at {fb_lots} lots ({fallback_qty} qty)..."
+                                        )
+                                        self._enforce_order_stagger()
+                                        fb_resp = dispatch['acc_api'].place_entry_order(
+                                            security_id=sec_id,
+                                            transaction_type=action,
+                                            quantity=fallback_qty,
+                                            order_type="LIMIT",
+                                            price=dispatch['limit_price'],
+                                            target_points=dispatch['api_opt_tp'],
+                                            sl_points=dispatch['api_opt_sl'],
+                                            trailing_jump=dispatch['api_opt_trail'],
+                                            exchange_segment=opt_seg,
+                                            product_type=dispatch['inst_product_type'],
+                                            ref_price=ltp
+                                        )
+                                        if fb_resp and not fb_resp.get('failed', False) and fb_resp.get('orderStatus') in ['PENDING', 'TRANSIT', 'TRADED', 'SUBMITTED', 'SUCCESS']:
+                                            self.logger.info(
+                                                f"[{self.name}] [{clean_source}] [MARGIN FALLBACK SUCCESS] Resized order filled at {fb_lots} lots ({fallback_qty} qty) for '{acc_name}'!"
+                                            )
+                                            resp = fb_resp
+                                            dispatch['acc_qty'] = fallback_qty
+                                            is_success = True
+                                            if self.alert_manager:
+                                                self.alert_manager.send_alert(
+                                                    f"⚠️ *[MARGIN DOWNSIZED]* High Conviction Order Resized\n"
+                                                    f"🔹 *Instrument:* `{self.name}`\n"
+                                                    f"🔹 *Strategy:* `{clean_source}`\n"
+                                                    f"🔹 *Account:* `{acc_name}`\n"
+                                                    f"🔹 *Original Request:* `{orig_lots} lots` ({orig_lots * lot_unit} qty)\n"
+                                                    f"🔹 *Downsized Fill:* `{fb_lots} lots` ({fallback_qty} qty)\n"
+                                                    f"⚠️ *Broker Shortfall:* `{reject_reason}`\n"
+                                                    f"✅ *Position active at {fb_lots} lots!*",
+                                                    header="Margin Fallback Filled"
+                                                )
+                                            break
+                                        else:
+                                            if isinstance(fb_resp, dict):
+                                                reject_reason = fb_resp.get('omsErrorDescription') or fb_resp.get('remarks') or fb_resp.get('message') or reject_reason
+
+                            if is_success:
                                 success_accounts.add(acc_name)
                                 item_total_qty += dispatch['acc_qty']
                                 item_success = True
@@ -2176,8 +2404,29 @@ class InstrumentBot(threading.Thread):
                                     'target_points': opt_tp, 'sl_points': opt_sl, 'order_id': order_id,
                                     'status': resp.get('orderStatus', 'SUBMITTED'), 'account': acc_name
                                 }, self.config.TRADE_LOG_CSV, self.logger)
+                            else:
+                                self.logger.error(f"[{self.name}] [{clean_source}] Order placement failed/rejected for '{acc_name}' on {sec_id}. Reason: {reject_reason}")
+                                if self.alert_manager:
+                                    self.alert_manager.send_alert(
+                                        f"❌ *Order Placement Failed / Rejected*\n"
+                                        f"🔹 *Instrument:* `{self.name}`\n"
+                                        f"🔹 *Strategy:* `{clean_source}`\n"
+                                        f"🔹 *Account:* `{acc_name}`\n"
+                                        f"🔹 *Leg:* `{leg_type} {action}`\n"
+                                        f"⚠️ *Reason:* `{reject_reason}`",
+                                        header="Order Rejected"
+                                    )
                         except Exception as e:
                             self.logger.error(f"[{self.name}] Async dispatch result error for '{acc_name}': {e}")
+                            if self.alert_manager:
+                                self.alert_manager.send_alert(
+                                    f"❌ *Order Placement Exception*\n"
+                                    f"🔹 *Instrument:* `{self.name}`\n"
+                                    f"🔹 *Strategy:* `{clean_source}`\n"
+                                    f"🔹 *Account:* `{acc_name}`\n"
+                                    f"⚠️ *Error:* `{e}`",
+                                    header="Order Error"
+                                )
                 
             if item_success:
                 if local_exit_monitoring:
@@ -2301,6 +2550,22 @@ class InstrumentBot(threading.Thread):
                                 if created_str:
                                     created_dt = datetime.fromisoformat(created_str)
                                     if (datetime.now(self.config.TIMEZONE) - created_dt).total_seconds() > 120:
+                                        strat_name = position.get('strategy', 'Unknown')
+                                        closed_broker_pos = [p for p in pos_list if str(p.get('securityId')) == sec_id and safe_int(p.get('netQty', 0)) == 0]
+                                        if closed_broker_pos:
+                                            realized_pnl = float(closed_broker_pos[0].get('realizedProfit', 0.0))
+                                            if realized_pnl < 0:
+                                                strat_sls = self.daily_sl_counts.setdefault(strat_name, {})
+                                                strat_sls[acc_name] = strat_sls.get(acc_name, 0) + 1
+                                                self.logger.warning(f"[{self.name}] Broker closed position with loss ({realized_pnl:.2f}). Recorded Daily SL for {strat_name} on {acc_name} ({strat_sls[acc_name]}).")
+                                                log_trade_event({
+                                                    'timestamp': datetime.now(self.config.TIMEZONE).isoformat(),
+                                                    'instrument': self.name, 'signal': "StopLoss", 'leg': position.get('symbol', sec_id),
+                                                    'action': "CLOSE", 'symbol': position.get('symbol', sec_id), 'security_id': sec_id,
+                                                    'price': 0.0, 'qty': position.get('qty', 0), 'atr': 0.0, 'delta': 0.0,
+                                                    'target_points': 0.0, 'sl_points': 0.0, 'order_id': position.get('order_id', ''),
+                                                    'status': "CLOSED_SL", 'account': acc_name, 'strategy': strat_name, 'exit_reason': "StopLoss_Broker"
+                                                }, self.config.TRADE_LOG_CSV, self.logger)
                                         self.logger.info(f"[{self.name}] Cleaning up stale local position state for {pos_key} ({sec_id})")
                                         with self.state.lock:
                                             self.state.positions.pop(pos_key, None)
@@ -2391,21 +2656,49 @@ class InstrumentBot(threading.Thread):
                                 hit_target = False
                                 with self.state.lock:
                                     be_mult = position.get("Breakeven_Mult", 0.0)
-                                    if be_mult > 0.0 and not position.get("Breakeven_Triggered", False) and position.get("Initial_SL_Points", 0.0) > 0.0:
-                                        if action == 'BUY':
-                                            trigger_level = position["Entry_Price"] + (position["Initial_SL_Points"] * be_mult)
-                                            if contract_ltp >= trigger_level:
+                                    if be_mult > 0.0 and not position.get("Breakeven_Triggered", False):
+                                        if pos_exit_mode == 'POINTS':
+                                            trigger_level = position["Entry_Price"] + be_mult if action == 'BUY' else position["Entry_Price"] - be_mult
+                                        elif position.get("Initial_SL_Points", 0.0) > 0.0:
+                                            trigger_level = position["Entry_Price"] + (position["Initial_SL_Points"] * be_mult) if action == 'BUY' else position["Entry_Price"] - (position["Initial_SL_Points"] * be_mult)
+                                        else:
+                                            trigger_level = None
+
+                                        if trigger_level is not None:
+                                            be_hit = False
+                                            if action == 'BUY' and contract_ltp >= trigger_level:
                                                 position["opt_sl_price"] = max(position["opt_sl_price"], position["Entry_Price"])
                                                 position["Breakeven_Triggered"] = True
                                                 self.logger.info(f"[{self.name}] [BREAKEVEN SL TRIGGER] Moved SL to entry: {position['opt_sl_price']:.2f} (Contract LTP: {contract_ltp:.2f})")
                                                 updated = True
-                                        else: # SELL
-                                            trigger_level = position["Entry_Price"] - (position["Initial_SL_Points"] * be_mult)
-                                            if contract_ltp <= trigger_level:
+                                                be_hit = True
+                                            elif action == 'SELL' and contract_ltp <= trigger_level:
                                                 position["opt_sl_price"] = min(position["opt_sl_price"], position["Entry_Price"])
                                                 position["Breakeven_Triggered"] = True
                                                 self.logger.info(f"[{self.name}] [BREAKEVEN SL TRIGGER] Moved SL to entry: {position['opt_sl_price']:.2f} (Contract LTP: {contract_ltp:.2f})")
                                                 updated = True
+                                                be_hit = True
+
+                                            if be_hit:
+                                                # Option 3 (Crash-Proof Hybrid): Modify resting STOP_LOSS_LEG on Dhan directly
+                                                super_oid = position.get('order_id')
+                                                if super_oid and acc_api:
+                                                    try:
+                                                        target_sym = open_broker_positions.get(sec_id, {}).get('tradingSymbol', sec_id)
+                                                        mod_ok = acc_api.modify_super_order_sl(super_oid, position["Entry_Price"])
+                                                        if mod_ok:
+                                                            self.logger.info(f"[{self.name}] [BREAKEVEN BROKER MODIFIED] Dhan STOP_LOSS_LEG for order {super_oid} modified to Entry Price ({position['Entry_Price']:.2f})!")
+                                                            if self.alert_manager:
+                                                                self.alert_manager.send_alert(
+                                                                    f"🛡️ *Breakeven Protected on Dhan*\n"
+                                                                    f"• *Symbol:* `{target_sym}`\n"
+                                                                    f"• *Account:* `{acc_name}`\n"
+                                                                    f"• *Broker SL Updated:* `₹{position['Entry_Price']:.2f}` (Entry Price)\n"
+                                                                    f"• *Status:* 100% Risk-Free (Exchange Protected)",
+                                                                    header="Breakeven Order Modified"
+                                                                )
+                                                    except Exception as e:
+                                                        self.logger.error(f"[{self.name}] Failed to modify STOP_LOSS_LEG on Dhan for order {super_oid}: {e}")
 
                                     if action == 'BUY':
                                         if contract_ltp > position.get('opt_mfe', position.get('Entry_Price', contract_ltp)):
@@ -2554,6 +2847,22 @@ class InstrumentBot(threading.Thread):
                                 
                                 if resp:
                                     self.logger.warning(f"[{self.name}] Position closed successfully: {resp}")
+                                    strat_name = position.get('strategy', 'Unknown')
+                                    if hit_sl or "StopLoss" in reason or "SL" in reason:
+                                        strat_sls = self.daily_sl_counts.setdefault(strat_name, {})
+                                        strat_sls[acc_name] = strat_sls.get(acc_name, 0) + 1
+                                        self.logger.warning(f"[{self.name}] Daily SL recorded for {strat_name} on {acc_name} (Current: {strat_sls[acc_name]}).")
+                                        
+                                    log_trade_event({
+                                        'timestamp': datetime.now(self.config.TIMEZONE).isoformat(),
+                                        'instrument': self.name, 'signal': reason, 'leg': sym, 'action': close_action,
+                                        'symbol': sym, 'security_id': sec_id,
+                                        'price': current_ltp_ref, 'qty': abs_qty, 'atr': 0.0, 'delta': 0.0,
+                                        'target_points': 0.0, 'sl_points': 0.0, 'order_id': resp.get('orderId', ''),
+                                        'status': resp.get('orderStatus', 'SUBMITTED'), 'account': acc_name,
+                                        'strategy': strat_name, 'exit_reason': reason
+                                    }, self.config.TRADE_LOG_CSV, self.logger)
+
                                     with self.state.lock:
                                         self.state.positions.pop(pos_key, None)
                                     self.state.save_state()
@@ -2593,7 +2902,29 @@ class InstrumentBot(threading.Thread):
         strat_config = self.get_strategy_instrument_config(source)
         otm_offset = int(strat_config.get("otm_offset", 0))
         leg_sl_pct = float(strat_config.get("leg_sl_pct", 0.35))
-        num_lots = int(strat_config.get("num_lots", 3))
+        base_num_lots = int(strat_config.get("num_lots_sell", strat_config.get("num_lots", 1)))
+        
+        # Dynamic Conviction Sizing for Option Writing
+        if strat_config.get('enable_dynamic_conviction', False) and self.df_spot is not None and not self.df_spot.empty:
+            conv_score = 1.0
+            clean_source = source.split(" (")[0].replace(" ", "_")
+            conv_col = f'Conviction_{clean_source}' if f'Conviction_{clean_source}' in self.df_spot.columns else (
+                f'Conviction_{source}' if f'Conviction_{source}' in self.df_spot.columns else (
+                    'Conviction' if 'Conviction' in self.df_spot.columns else None
+                )
+            )
+            if conv_col:
+                c_val = self.df_spot[conv_col].iloc[-1]
+                if pd.notna(c_val) and float(c_val) >= 1.5:
+                    conv_score = float(c_val)
+                elif len(self.df_spot) >= 2:
+                    prev_c_val = self.df_spot[conv_col].iloc[-2]
+                    if pd.notna(prev_c_val) and float(prev_c_val) >= 1.5:
+                        conv_score = float(prev_c_val)
+                        
+            if conv_score >= 1.5:
+                base_num_lots = int(strat_config.get('num_lots_high_conviction', base_num_lots))
+                self.logger.info(f"[{self.name}] [{source}] High Conviction Detected ({conv_col}={conv_score:.1f})! Sizing scaled to {base_num_lots} lots.")
         
         inst_config = self.config.INSTRUMENTS[self.name]
         strike_step = int(inst_config.get("strike_step", 50))
@@ -2659,8 +2990,30 @@ class InstrumentBot(threading.Thread):
             if strat_counts.get(acc_name, 0) >= acc_daily_limit:
                 self.logger.warning(f"[{self.name}] [{source}] [SKIP] Account '{acc_name}' has reached Daily Limit for {source} ({strat_counts.get(acc_name, 0)}/{acc_daily_limit}).")
                 continue
+            
+            # Check Max Daily SL Circuit Breaker
+            acc_max_sl = overrides.get(
+                'max_daily_sl_per_strategy',
+                overrides.get('max_daily_sl', acc_config.get('max_daily_sl', strat_config.get('max_daily_sl_per_strategy', strat_config.get('max_daily_sl', inst_config.get('max_daily_sl', None)))))
+            )
+            if acc_max_sl is not None:
+                strat_sls = self.daily_sl_counts.setdefault(source, {})
+                if strat_sls.get(acc_name, 0) >= acc_max_sl:
+                    self.logger.warning(f"[{self.name}] [{source}] [SKIP] Account '{acc_name}' has reached Max Daily SL for {source} ({strat_sls.get(acc_name, 0)}/{acc_max_sl}). Circuit breaker active.")
+                    continue
                 
-            order_qty = num_lots * lot_size
+            # Resolve Lots per Account (honoring account-level overrides and multipliers)
+            override_lots = overrides.get('num_lots_sell', overrides.get('num_lots'))
+            if override_lots is not None:
+                acc_num_lots = int(override_lots)
+            else:
+                multiplier = float(acc_config.get('global_multiplier', 1.0))
+                acc_num_lots = max(1, int(base_num_lots * multiplier)) if base_num_lots > 0 else 0
+                
+            if acc_num_lots <= 0:
+                continue
+                
+            order_qty = acc_num_lots * lot_size
             
             self.logger.info(f"[{self.name}] [{source}] Placing LIVE SELL Market Order for '{acc_name}': {order_qty} qty of {prefix} {strike} {action_type} (sec_id: {sec_id})")
             
@@ -2680,7 +3033,70 @@ class InstrumentBot(threading.Thread):
                 order_id = str(resp.get('orderId') or (resp.get('data', {}).get('orderId') if isinstance(resp.get('data'), dict) else ''))
                 order_status_val = str(resp.get('orderStatus') or (resp.get('data', {}).get('orderStatus') if isinstance(resp.get('data'), dict) else ''))
 
-            if resp and order_status_val != 'REJECTED':
+            is_sell_failed = not resp or resp.get('failed', False) or order_status_val in ['REJECTED', 'FAILED']
+            if is_sell_failed:
+                reject_reason = 'Submission failed / Rejected by Dhan'
+                if isinstance(resp, dict):
+                    reject_reason = (
+                        resp.get('omsErrorDescription') or 
+                        resp.get('remarks') or 
+                        (resp.get('data', {}).get('omsErrorDescription') if isinstance(resp.get('data'), dict) else '') or 
+                        resp.get('message') or
+                        resp.get('status') or 
+                        'Submission failed / Rejected by Dhan'
+                    )
+                
+                # Check for Margin Downsizing in direct option selling
+                if self._is_margin_rejection(reject_reason, resp) and order_qty > lot_size:
+                    fallback_qty = lot_size
+                    self.logger.warning(
+                        f"[{self.name}] [{source}] [MARGIN FALLBACK] Direct option sell of {order_qty} qty rejected for '{acc_name}' "
+                        f"due to broker margin shortfall ({reject_reason}). Retrying at 1 lot ({fallback_qty} qty)..."
+                    )
+                    self._enforce_order_stagger()
+                    fb_resp = acc_api.place_order(
+                        security_id=sec_id,
+                        transaction_type="SELL",
+                        quantity=fallback_qty,
+                        exchange_segment=inst_config.get("option_segment", "NSE_FNO"),
+                        product_type="MARGIN",
+                        order_type="MARKET",
+                        price=0.0
+                    )
+                    if fb_resp and not fb_resp.get('failed', False) and str(fb_resp.get('orderStatus', '')).upper() not in ['REJECTED', 'FAILED']:
+                        resp = fb_resp
+                        order_qty = fallback_qty
+                        is_sell_failed = False
+                        order_id = str(resp.get('orderId') or (resp.get('data', {}).get('orderId') if isinstance(resp.get('data'), dict) else ''))
+                        order_status_val = str(resp.get('orderStatus') or (resp.get('data', {}).get('orderStatus') if isinstance(resp.get('data'), dict) else 'SUBMITTED'))
+                        self.logger.info(f"[{self.name}] [{source}] [MARGIN FALLBACK SUCCESS] Direct option sell filled at {fallback_qty} qty for '{acc_name}'!")
+                        if self.alert_manager:
+                            self.alert_manager.send_alert(
+                                f"⚠️ *[MARGIN DOWNSIZED]* Direct Option Sell Resized\n"
+                                f"🔹 *Instrument:* `{prefix} {strike} {action_type}`\n"
+                                f"🔹 *Strategy:* `{source}`\n"
+                                f"🔹 *Account:* `{acc_name}`\n"
+                                f"🔹 *Downsized Qty:* `{fallback_qty}`\n"
+                                f"⚠️ *Broker Shortfall:* `{reject_reason}`\n"
+                                f"✅ *Order successfully filled at 1 lot!*",
+                                header="Margin Fallback Filled"
+                            )
+
+            if is_sell_failed:
+                self.logger.error(f"[{self.name}] [{source}] Order placement failed/rejected for '{acc_name}'. Reason: {reject_reason}")
+                if self.alert_manager:
+                    self.alert_manager.send_alert(
+                        f"❌ *Order Placement Rejected / Failed*\n"
+                        f"🔹 *Instrument:* `{prefix} {strike} {action_type}`\n"
+                        f"🔹 *Strategy:* `{source}`\n"
+                        f"🔹 *Account:* `{acc_name}`\n"
+                        f"🔹 *Qty:* `{order_qty}`\n"
+                        f"⚠️ *Reason:* `{reject_reason}`",
+                        header="Order Rejected"
+                    )
+                continue
+
+            if resp and not is_sell_failed:
                 # BUG-C2 FIX: MARKET orders return price=0.0 at submission time.
                 # Poll order status to get the actual fill price before computing SL.
                 fill_px = 0.0
@@ -2710,8 +3126,25 @@ class InstrumentBot(threading.Thread):
                                         self.logger.info(f"[{self.name}] [{source}] Fill price confirmed: ₹{fill_px:.2f}")
                                         break
                                     elif actual_status in ['REJECTED', 'CANCELLED']:
-                                        self.logger.error(f"[{self.name}] [{source}] Order {order_id} was {actual_status}. Skipping state update.")
+                                        reject_reason = (
+                                            order_data.get('omsErrorDescription') or 
+                                            order_data.get('remarks') or 
+                                            order_data.get('failureRemarks') or 
+                                            'Unknown reason'
+                                        )
+                                        self.logger.error(f"[{self.name}] [{source}] Order {order_id} was {actual_status} on '{acc_name}'. Reason: {reject_reason}")
                                         order_status_val = actual_status
+                                        if self.alert_manager:
+                                            self.alert_manager.send_alert(
+                                                f"❌ *Order {actual_status} by Broker*\n"
+                                                f"🔹 *Instrument:* `{prefix} {strike} {action_type}`\n"
+                                                f"🔹 *Strategy:* `{source}`\n"
+                                                f"🔹 *Account:* `{acc_name}`\n"
+                                                f"🔹 *Qty:* `{order_qty}`\n"
+                                                f"🔹 *Order ID:* `{order_id}`\n"
+                                                f"⚠️ *Reason:* `{reject_reason}`",
+                                                header="Order Rejected"
+                                            )
                                         break
                         except Exception as poll_e:
                             self.logger.warning(f"[{self.name}] [{source}] Fill price poll attempt {attempt+1} failed: {poll_e}")
@@ -2848,7 +3281,7 @@ class InstrumentBot(threading.Thread):
                     
                 if trigger_exit:
                     self.logger.warning(f"[{self.name}] [STRATEGY 20 EXIT] Closing short leg {pos['symbol']} on {acc_name}: {reason}")
-                    acc_api.place_order(
+                    resp = acc_api.place_order(
                         security_id=sec_id,
                         transaction_type="BUY",
                         quantity=qty,
@@ -2857,6 +3290,22 @@ class InstrumentBot(threading.Thread):
                         order_type="MARKET",
                         price=0.0
                     )
+                    if "Stop Loss" in reason or "Max Loss" in reason or "SL" in reason:
+                        strat_sls = self.daily_sl_counts.setdefault("Strategy_20", {})
+                        strat_sls[acc_name] = strat_sls.get(acc_name, 0) + 1
+                        self.logger.warning(f"[{self.name}] Daily SL recorded for Strategy_20 on {acc_name} (Current: {strat_sls[acc_name]}).")
+                        
+                    log_trade_event({
+                        'timestamp': datetime.now(self.config.TIMEZONE).isoformat(),
+                        'instrument': self.name, 'signal': "StopLoss" if ("Stop Loss" in reason or "Max Loss" in reason) else "Target",
+                        'leg': pos.get('symbol', sec_id),
+                        'action': "BUY", 'symbol': pos.get('symbol', sec_id), 'security_id': sec_id,
+                        'price': ltp, 'qty': qty, 'atr': 0.0, 'delta': 0.0,
+                        'target_points': 0.0, 'sl_points': 0.0, 'order_id': resp.get('orderId', '') if resp else '',
+                        'status': "SUBMITTED", 'account': acc_name,
+                        'strategy': "Strategy_20", 'exit_reason': reason
+                    }, self.config.TRADE_LOG_CSV, self.logger)
+
                     with self.state.lock:
                         keys_to_remove = [
                             k for k, p in self.state.positions.items()
@@ -3127,6 +3576,11 @@ def main_loop(config: Config, logger):
                                             num_lots = inst_config.get('num_lots_buy', 1)
                                         else:
                                             num_lots = inst_config.get('num_lots_sell', 1)
+                                            if inst_config.get('enable_dynamic_conviction', False) and 'Conviction' in df_5min.columns:
+                                                conv_val = df_5min['Conviction'].iloc[-1]
+                                                if pd.notna(conv_val) and float(conv_val) >= 1.5:
+                                                    num_lots = inst_config.get('num_lots_high_conviction', num_lots)
+                                                    logger.info(f"[{leg_tag}] High Conviction Detected (15m Aligned)! Sizing scaled up to {num_lots} lots.")
                                             
                                         # Recalculate Quantity based on Split Lots Logic
                                         trade_quantity = base_lot_size * num_lots

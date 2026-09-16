@@ -12,16 +12,16 @@ from datetime import datetime, timedelta, time as dt_time
 from multiprocessing.pool import ThreadPool
 from dotenv import load_dotenv
 
-# Silence XGBoost use_label_encoder warnings
-warnings.filterwarnings("ignore", category=UserWarning, message=".*use_label_encoder.*")
+# Silence XGBoost and pandas datetime format inference warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def safe_to_datetime(series_or_scalar):
     """Safely parse dates with mixed formats and dayfirst=True support, fallback on error."""
     try:
-        return pd.to_datetime(series_or_scalar, format='mixed', dayfirst=True)
+        return pd.to_datetime(series_or_scalar, format='ISO8601')
     except Exception:
         try:
-            return pd.to_datetime(series_or_scalar, format='mixed')
+            return pd.to_datetime(series_or_scalar, format='mixed', dayfirst=True)
         except Exception:
             return pd.to_datetime(series_or_scalar, errors='coerce')
 
@@ -101,6 +101,10 @@ def read_last_n_lines_to_df(filepath, n=2000):
             raise ValueError(f"Missing required columns {missing} in file {filepath} on fallback path.")
         return df[required]
 
+# Import centralized feature timing constants
+sys.path.append(os.path.join(BASE_DIR, "stock_selection"))
+from constants import get_last_30m_window, MIN_WINDOW_CANDLES
+
 def precompute_nifty_features():
     print("[NIFTY] Precomputing market index features from nifty_spot.csv...")
     nifty_path = os.path.join(DATA_DIR, "nifty_spot.csv")
@@ -128,17 +132,8 @@ def precompute_nifty_features():
         df_by_date = {d: grp for d, grp in df.groupby(df.index.date)}
         nifty_features = {}
         for d, day_df in df_by_date.items():
-            from datetime import date
-            if d >= date(2026, 8, 3):
-                last_30_df = day_df.between_time('14:45', '15:14')
-            else:
-                max_time = day_df.index.max().time() if not day_df.empty else None
-                if max_time and max_time >= dt_time(15, 25):
-                    last_30_df = day_df.between_time('15:00', '15:29')
-                else:
-                    last_30_df = day_df.between_time('14:45', '15:14')
-                
-            if len(last_30_df) < 25:
+            last_30_df = get_last_30m_window(day_df, d)
+            if len(last_30_df) < MIN_WINDOW_CANDLES:
                 continue
             ret_30m = (last_30_df['close'].iloc[-1] - last_30_df['open'].iloc[0]) / (last_30_df['open'].iloc[0] + 1e-8)
             rsi_val = last_30_df['rsi'].iloc[-1]
@@ -187,7 +182,7 @@ def extract_features_for_last_day(symbol, nifty_features=None):
         df.ffill(inplace=True)
         df.dropna(subset=['rsi', 'ema_diff', 'atr'], inplace=True)
 
-        # 3. Find the most recent day with complete afternoon candles (15:00 to 15:29 inclusive)
+        # 3. Find the most recent day with complete afternoon candles
         df_by_date = {d: grp for d, grp in df.groupby(df.index.date)}
         chronological_dates = sorted(list(df_by_date.keys()))
         
@@ -198,17 +193,8 @@ def extract_features_for_last_day(symbol, nifty_features=None):
         
         for d in reversed(chronological_dates):
             day_df = df_by_date[d]
-            from datetime import date
-            if d >= date(2026, 8, 3):
-                last_30_df = day_df.between_time('14:45', '15:14')
-            else:
-                max_time = day_df.index.max().time() if not day_df.empty else None
-                if max_time and max_time >= dt_time(15, 25):
-                    last_30_df = day_df.between_time('15:00', '15:29')
-                else:
-                    last_30_df = day_df.between_time('14:45', '15:14')
-                
-            if len(last_30_df) >= 25:
+            last_30_df = get_last_30m_window(day_df, d)
+            if len(last_30_df) >= MIN_WINDOW_CANDLES:
                 last_date = d
                 features_found = True
                 break

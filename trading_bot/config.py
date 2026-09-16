@@ -140,13 +140,13 @@ class Config:
         self.PROXY_URL = os.getenv("DHAN_PROXY_URL", "").strip()
 
         # Parse Strategy Enable Flags from .env
-        for i in range(1, 23):
+        for i in range(1, 24):
             env_val = os.getenv(f"ENABLE_STRATEGY_{i}", None)
             if env_val is not None:
                 setattr(self, f"ENABLE_STRATEGY_{i}", env_val.strip().upper() == "TRUE")
 
         self.active_strategy = "Strategy_3"
-        for i in range(1, 23):
+        for i in range(1, 24):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 self.active_strategy = f"Strategy_{i}"
                 break

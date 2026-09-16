@@ -68,6 +68,7 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
     merged_df = df.copy()
     merged_df['Signal'] = 0
     merged_df['Signal_Source'] = "None"
+    merged_df['Conviction'] = 1.0
     merged_df['Exit_Long'] = False
     merged_df['Exit_Short'] = False
     merged_df['Exit_Source'] = "None"
@@ -77,6 +78,7 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
         merged_df[f'Signal_{s_name}'] = 0
         merged_df[f'Exit_Long_{s_name}'] = False
         merged_df[f'Exit_Short_{s_name}'] = False
+        merged_df[f'Conviction_{s_name}'] = 1.0
         
     try:
         for s_name in active_strategies:
@@ -132,6 +134,11 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
                 fallback_mask = sig_mask & (merged_df['Signal'] == 0)
                 merged_df.loc[fallback_mask, 'Signal'] = df_strat.loc[fallback_mask, 'Signal']
                 merged_df.loc[fallback_mask, 'Signal_Source'] = s_name
+
+                # Merge Conviction score
+                if 'Conviction' in df_strat.columns:
+                    merged_df.loc[sig_mask, f'Conviction_{s_name}'] = df_strat.loc[sig_mask, 'Conviction']
+                    merged_df.loc[fallback_mask, 'Conviction'] = df_strat.loc[fallback_mask, 'Conviction']
                 
                 # Merge Exit Signals
                 for col in ['Exit_Long', 'Exit_Short']:
@@ -194,7 +201,7 @@ def get_latest_signal(df: pd.DataFrame, logger, config: Config) -> Tuple[Optiona
                 disp_time = disp_time.tz_localize('UTC')
             disp_time = disp_time.tz_convert(config.TIMEZONE)
         disp_time_str = disp_time.strftime('%H:%M:%S')
-    except:
+    except Exception:
         disp_time_str = str(disp_time)
         disp_time = None
 
@@ -244,7 +251,7 @@ def get_all_latest_signals(df: pd.DataFrame, logger, config: Config) -> list:
                 disp_time = disp_time.tz_localize('UTC')
             disp_time = disp_time.tz_convert(config.TIMEZONE)
         disp_time_str = disp_time.strftime('%H:%M:%S')
-    except:
+    except Exception:
         disp_time_str = str(disp_time)
         disp_time = None
         
@@ -261,7 +268,7 @@ def get_all_latest_signals(df: pd.DataFrame, logger, config: Config) -> list:
                 s_name = col.split("Signal_")[-1]
                 # Double check that the strategy is actually enabled
                 if getattr(config, f"ENABLE_{s_name.upper()}", False):
-                    direction = 'buy' if sig == 1 else 'sell'
+                    direction = 'buy' if sig == 1 else ('sell' if sig == -1 else 'both')
                     atr = completed_row.get('ATR', 0.0)
                     active_signals.append((direction, atr, s_name))
                     logger.info(f"  >>> CONCURRENT TRIGGER: {s_name} ({direction.upper()}) @ {disp_time_str}")
@@ -364,7 +371,7 @@ def choose_option_instruments(api: DhanAPIWrapper, signal: str, instrument_confi
             return [], []
         
         expiry_list.sort()
-        target_expiry_idx = instrument_config.get('expiry_index', 1)
+        target_expiry_idx = instrument_config.get('expiry_index', 0)
         
         if len(expiry_list) > target_expiry_idx:
             nearest_expiry = expiry_list[target_expiry_idx]
@@ -824,11 +831,45 @@ def choose_strategy_instruments(api: DhanAPIWrapper, signal: str, strategy_mode:
                 ("SELL", "CE", strike_offset_sell, "CE_SHORT"),
                 ("BUY", "CE", strike_offset_sell + width, "CE_LONG")
             ]
-        elif mode in ("2", "OPTION_WRITING", "DIRECT_SELL"):
-            if str(signal).lower() in ('buy', 'call', '1', '+1'):
-                blueprints = [("SELL", "PE", strike_offset_sell, "PE_SHORT")]
-            else:
-                blueprints = [("SELL", "CE", strike_offset_sell, "CE_SHORT")]
+        elif mode in ("1", "DIRECT", "2", "OPTION_WRITING", "DIRECT_SELL"):
+            leg_mode = instrument_config.get("LEG_MODE", getattr(config, "LEG_MODE", "BUY")).upper()
+            sig_str = str(signal).lower()
+            if sig_str in ('both', 'strangle', '2'):
+                if leg_mode == "SELL":
+                    blueprints = [
+                        ("SELL", "CE", strike_offset_sell, "CE_SHORT"),
+                        ("SELL", "PE", strike_offset_sell, "PE_SHORT")
+                    ]
+                elif leg_mode == "BUY":
+                    blueprints = [
+                        ("BUY", "CE", strike_offset_buy, "CE_LONG"),
+                        ("BUY", "PE", strike_offset_buy, "PE_LONG")
+                    ]
+                else: # BOTH
+                    blueprints = [
+                        ("SELL", "CE", strike_offset_sell, "CE_SHORT"),
+                        ("SELL", "PE", strike_offset_sell, "PE_SHORT")
+                    ]
+            elif sig_str in ('buy', 'call', '1', '+1'):
+                if leg_mode == "SELL":
+                    blueprints = [("SELL", "PE", strike_offset_sell, "PE_SHORT")]
+                elif leg_mode == "BUY":
+                    blueprints = [("BUY", "CE", strike_offset_buy, "CE_LONG")]
+                else: # BOTH
+                    blueprints = [
+                        ("BUY", "CE", strike_offset_buy, "CE_LONG"),
+                        ("SELL", "PE", strike_offset_sell, "PE_SHORT")
+                    ]
+            else: # sell / put / -1
+                if leg_mode == "SELL":
+                    blueprints = [("SELL", "CE", strike_offset_sell, "CE_SHORT")]
+                elif leg_mode == "BUY":
+                    blueprints = [("BUY", "PE", strike_offset_buy, "PE_LONG")]
+                else: # BOTH
+                    blueprints = [
+                        ("BUY", "PE", strike_offset_buy, "PE_LONG"),
+                        ("SELL", "CE", strike_offset_sell, "CE_SHORT")
+                    ]
         elif mode in ("10", "CALENDAR_SPREAD"):
             logger.info("[CHOOSE_STRAT] Calendar spread mode requested, resolved via dedicated multi-expiry builder.")
             return []
@@ -969,23 +1010,24 @@ def wait_for_next_candle(current_time: datetime, poll_interval: int, logger, off
     return next_minute
 
 # ========== TRADE ACTION DETERMINATION ==========
-def get_trade_actions(signal: str, config: Config, logger) -> Tuple[Optional[str], Optional[str]]:
-    """Determine CE and PE actions based on signal and LEG_MODE"""
-    if config.LEG_MODE == "BOTH":
+def get_trade_actions(signal: str, config: Config, logger, leg_mode_override: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+    """Determine CE and PE actions based on signal and LEG_MODE (supporting strategy overrides)"""
+    mode = (leg_mode_override or getattr(config, 'LEG_MODE', 'BOTH')).upper()
+    if mode == "BOTH":
         if signal.lower() == 'buy':
             logger.info(f"[DIRECTION] Mode=BOTH, Signal=BUY >> CE=BUY, PE=SELL")
             return ('BUY', 'SELL')
         else: # sell
             logger.info(f"[DIRECTION] Mode=BOTH, Signal=SELL >> CE=SELL, PE=BUY")
             return ('SELL', 'BUY')
-    elif config.LEG_MODE == "BUY":
+    elif mode == "BUY":
         if signal.lower() == 'buy':
             logger.info(f"[DIRECTION] Mode=BUY, Signal=BUY >> CE=BUY, PE=None")
             return ('BUY', None)
         else:
             logger.info(f"[DIRECTION] Mode=BUY, Signal=SELL >> CE=None, PE=BUY")
             return (None, 'BUY')
-    elif config.LEG_MODE == "SELL":
+    elif mode == "SELL":
         if signal.lower() == 'buy':
             logger.info(f"[DIRECTION] Mode=SELL, Signal=BUY >> CE=None, PE=SELL")
             return (None, 'SELL')
@@ -1034,7 +1076,7 @@ def fetch_candle_with_retry(api, security_id, config, logger, interval: int = 1,
                            t = t.tz_localize('UTC')
                         return t.tz_convert(config.TIMEZONE)
                     return t
-                except: return t
+                except Exception: return t
 
             last_candle_log = _log_time(last_candle_time)
             if last_candle_time >= expected_candle_time:
@@ -1049,10 +1091,18 @@ def fetch_candle_with_retry(api, security_id, config, logger, interval: int = 1,
 # ========== DATA RESTORATION HELPER ==========
 def get_today_trade_count(csv_file: str, instrument_name: str, timezone, strategy_name: str = None) -> dict:
     """Count unique trades for a given instrument today per account by reading the CSV log."""
-    if not os.path.exists(csv_file):
+    if not isinstance(csv_file, (str, bytes)):
         return {}
     try:
-        today = datetime.now(timezone).date()
+        if not os.path.exists(csv_file):
+            return {}
+    except Exception:
+        return {}
+    try:
+        try:
+            today = datetime.now(timezone).date()
+        except Exception:
+            today = datetime.now().date()
         df = pd.read_csv(csv_file, usecols=lambda c: c in ['timestamp', 'instrument', 'account', 'strategy'])
         
         if 'timestamp' not in df.columns or 'instrument' not in df.columns:
@@ -1082,6 +1132,62 @@ def get_today_trade_count(csv_file: str, instrument_name: str, timezone, strateg
         import logging
         logging.error(f"[RESTORE] Failed to count trades for {instrument_name}: {e}")
         return {}
+
+def get_today_sl_count(csv_file: str, instrument_name: str, timezone, strategy_name: str = None) -> dict:
+    """Count StopLoss exits today per account by reading the CSV log."""
+    if not isinstance(csv_file, (str, bytes)):
+        return {}
+    try:
+        if not os.path.exists(csv_file):
+            return {}
+    except Exception:
+        return {}
+    try:
+        try:
+            today = datetime.now(timezone).date()
+        except Exception:
+            today = datetime.now().date()
+        df = pd.read_csv(csv_file)
+        
+        if 'timestamp' not in df.columns or 'instrument' not in df.columns:
+            return {}
+            
+        df = df[df['instrument'] == instrument_name]
+        if strategy_name and 'strategy' in df.columns:
+            df = df[df['strategy'] == strategy_name]
+            
+        if df.empty:
+            return {}
+            
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df = df.dropna(subset=['timestamp'])
+        df_today = df[df['timestamp'].dt.date == today]
+        
+        if df_today.empty:
+            return {}
+            
+        # Match StopLoss or SL in signal or exit_reason
+        sl_mask = pd.Series(False, index=df_today.index)
+        if 'signal' in df_today.columns:
+            sl_mask = sl_mask | df_today['signal'].astype(str).str.contains('StopLoss|SL', case=False, na=False)
+        if 'exit_reason' in df_today.columns:
+            sl_mask = sl_mask | df_today['exit_reason'].astype(str).str.contains('StopLoss|SL', case=False, na=False)
+            
+        df_sl = df_today[sl_mask]
+        if df_sl.empty:
+            return {}
+            
+        if 'account' not in df_sl.columns:
+            df_sl['account'] = 'UNKNOWN_ACCOUNT'
+            
+        df_sl['minute'] = df_sl['timestamp'].dt.floor('min')
+        counts = df_sl.groupby('account')['minute'].nunique().to_dict()
+        return counts
+    except Exception as e:
+        import logging
+        logging.error(f"[RESTORE] Failed to count SLs for {instrument_name}: {e}")
+        return {}
+
 
 # ========== STRATEGY 20: CALENDAR SPREAD OPTION RESOLVER ==========
 def choose_calendar_spread_v2(api, spot_price: float, stance: str = "PUT_CALENDAR", instrument_config: dict = None) -> list:

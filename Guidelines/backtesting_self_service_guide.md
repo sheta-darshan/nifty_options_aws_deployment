@@ -135,10 +135,12 @@ SATP supports strategy-specific parameter overrides. You can define custom risk 
 9.  **`local_exit_monitoring`**: (Optional boolean) Determines whether exits are monitored locally in Python (`true`) or placed as exchange-side broker Bracket/Super orders (`false`). If omitted, defaults to `true` for `SWING`, `SWING_CONTRACT`, and `POINTS` exit modes, and `false` for `ATR` mode.
 10. **`points_sl_buy` / `points_sl_sell`**: Stop Loss points for buy and sell legs under `POINTS` exit mode.
 11. **`points_target_buy` / `points_target_sell`**: Take Profit Target points for buy and sell legs under `POINTS` exit mode.
-12. **`points_trail_buy` / `points_trail_sell`**: Trailing jump points for buy and sell legs under `POINTS` exit mode.
-13. **`swing_window_size`**: (SWING and SWING_CONTRACT exit modes only) Lookback window size in candles (e.g. 10) to determine structural swing high/low.
-14. **`sl_buffer_atr_mult`**: (SWING and SWING_CONTRACT exit modes only) ATR multiplier buffer added/subtracted to the swing low/high to avoid liquidity sweeps (default: 0.2).
-15. **`profit_target_buy` / `profit_target_sell`**: (ATR and SWING_CONTRACT modes only) Fixed INR profit target (e.g. 650.0). If greater than 0, it overrides the dynamic ATR-based target premium calculation. The target points added/subtracted to the entry price are calculated as `profit_target / lot_size`.
+12. **`points_target_high_conviction`**: Extended Take Profit Target points under `POINTS` exit mode when dynamic conviction is triggered (`Conviction >= 1.5`).
+13. **`points_trail_buy` / `points_trail_sell`**: Trailing jump points for buy and sell legs under `POINTS` exit mode.
+14. **`points_be_buy` / `points_be_sell`**: Breakeven trigger under `POINTS` exit mode. Ratio if <= 1.0 (multiplier of SL distance), or absolute points in favor if > 1.0. Moves SL to entry price once reached.
+15. **`swing_window_size`**: (SWING and SWING_CONTRACT exit modes only) Lookback window size in candles (e.g. 10) to determine structural swing high/low.
+16. **`sl_buffer_atr_mult`**: (SWING and SWING_CONTRACT exit modes only) ATR multiplier buffer added/subtracted to the swing low/high to avoid liquidity sweeps (default: 0.2).
+17. **`profit_target_buy` / `profit_target_sell`**: (ATR and SWING_CONTRACT modes only) Fixed INR profit target (e.g. 650.0). If greater than 0, it overrides the dynamic ATR-based target premium calculation. The target points added/subtracted to the entry price are calculated as `profit_target / lot_size`.
 16. **`gatekeeper_enabled`**: (0/1) Enable or disable the secondary Gate Keeper validation system at entry.
 17. **`gatekeeper_single_strike`**: (0/1) If set to 1, checks only the target strike contract, skipping the default 3-strike basket consensus (recommended for stocks).
 18. **`gatekeeper_time_filter_minutes`**: (e.g., 20) Skip signals fired within N minutes of market open to avoid initial volatility.

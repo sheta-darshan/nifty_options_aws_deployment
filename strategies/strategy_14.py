@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import numpy as np
 import datetime
-from scipy.stats import rankdata
 from .base import BaseStrategy
 from .registry import register_strategy
 

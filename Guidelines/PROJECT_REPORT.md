@@ -58,7 +58,7 @@ SATP features a modular suite of technical and quantitative trading strategies:
 11. **Strategy 17 (High-Conviction Opening Scalp)**: Opening window volatility expansion scalp strategy.
 12. **Strategy 18 (SMA Breakout with 09:45 Time Gate)**: Time-gated opening range SMA breakout strategy.
 13. **Strategy 19 (Institutional Quant Machine Learning)**: Institutional ML-Gated strategy trained on 5+ years of Nifty 1-minute data using XGBoost classifiers and Walk-Forward cross validation, yielding **+Rs. 106,600.86 Net Profit** in multi-strategy portfolio testing.
-14. **Strategy 20 (15-Min Trend Option Writing System)**: High-probability 15-minute trend-directional option selling strategy evaluating EMA 9 vs 21 at 09:30 AM (selling Put options in uptrends and Call options in downtrends) with 35% premium Stop Loss and +₹1,500/lot profit target, achieving **72.1% Win Rate** and **+₹82,102.75 Net PnL** over 180-day backtesting.
+14. **Strategy 20 (15-Min Volatility-Adaptive Supertrend Option Writing System)**: 1-Trade-per-day option selling strategy powered by a single indicator (15-minute Supertrend 10, 2.0) selling Put options in Supertrend uptrends and Call options in downtrends, with +45 pts target, -20 pts SL, +15 pts Breakeven protection, and dynamic Supertrend reversal exits.
 
 ---
 

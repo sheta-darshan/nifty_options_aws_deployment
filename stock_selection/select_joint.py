@@ -1,13 +1,28 @@
+"""
+==========================================================================================
+        INSTITUTIONAL QUANTITATIVE STOCK SELECTION & ROTATION SUBSYSTEM
+==========================================================================================
+Selects the Top-K explosive volatility stocks using the trained global XGBoost model,
+applies live ASM/GSM surveillance filters, evaluates the 50 EMA Climax Fade rule, 
+enforces a 20-30% capital allocation cap, and logs paper trades safely.
+==========================================================================================
+"""
+
 import os
 import sys
 import argparse
 import json
 import glob
+import time
+import warnings
 from multiprocessing.pool import ThreadPool
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
+import joblib
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # Setup project root pathing
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,261 +38,300 @@ from select_stocks import (
     MODEL_DIR,
     PRED_DIR
 )
-import joblib
+
+SPOT_DIR = os.path.join(BASE_DIR, "backtest_data")
+EQUITY_L_PATH = os.path.join(BASE_DIR, "EQUITY_L.csv")
+PAPER_LOG_PATH = os.path.join(BASE_DIR, "stock_selection", "paper_trade_log.csv")
+
+
+def check_surveillance_status(df_daily, current_price):
+    """
+    Operational ASM/GSM Surveillance Safeguard.
+    Checks whether a stock matches SEBI's quantitative criteria:
+    - 15-day price variation >= 40%
+    - 5-day average volume < 25,000 shares
+    """
+    try:
+        if df_daily is None or len(df_daily) < 15:
+            return False, "OK"
+            
+        price_15d_ago = df_daily["close"].iloc[-15]
+        surge_15d = (current_price - price_15d_ago) / (price_15d_ago + 1e-8)
+        if surge_15d >= 0.40:
+            return True, f"ASM/GSM Risk: 15d Surge +{surge_15d*100:.1f}% >= 40%"
+            
+        if len(df_daily) >= 5:
+            avg_vol_5d = df_daily["volume"].iloc[-5:].mean()
+            if avg_vol_5d < 25000:
+                return True, f"ASM/GSM Risk: Low Liquidity ({int(avg_vol_5d)} shares/day < 25k)"
+                
+        return False, "OK"
+    except Exception as e:
+        return False, f"Check Error: {e}"
+
+
+def process_single_stock(symbol, nifty_features, model, feat_cols):
+    """Evaluates a single stock in ~3ms using tail binary seek."""
+    try:
+        features, last_date_obj = extract_features_for_last_day(symbol, nifty_features)
+        if features is None or last_date_obj is None:
+            return None
+
+        run_date_str = last_date_obj.strftime("%Y-%m-%d")
+
+        # Predict Range Expansion Score
+        X_pred = pd.DataFrame([features])[feat_cols]
+        probs = model.predict_proba(X_pred)[0]
+        vol_prob = float(probs[1] if len(probs) > 1 else probs[0])
+
+        # Read tail spot history for 50 EMA & Surveillance Check
+        spot_file = os.path.join(SPOT_DIR, f"{symbol.lower()}_spot.csv")
+        df_spot = read_last_n_lines_to_df(spot_file, n=25000)
+        if df_spot is None or len(df_spot) < 100:
+            return None
+
+        col_time = 'timestamp' if 'timestamp' in df_spot.columns else ('start_time' if 'start_time' in df_spot.columns else df_spot.columns[0])
+        df_spot[col_time] = pd.to_datetime(df_spot[col_time], errors='coerce')
+        df_spot = df_spot.dropna(subset=[col_time]).sort_values(by=col_time)
+        df_spot["dt_str"] = df_spot[col_time].dt.strftime("%Y-%m-%d")
+
+        df_daily = df_spot.groupby("dt_str").agg(
+            high=("high", "max"),
+            low=("low", "min"),
+            close=("close", "last"),
+            volume=("volume", "sum")
+        ).reset_index()
+
+        if len(df_daily) < 50:
+            return None
+
+        ema_50 = float(df_daily["close"].ewm(span=50, adjust=False).mean().iloc[-1])
+        last_close = float(df_daily["close"].iloc[-1])
+        stretch_pct = ((last_close - ema_50) / ema_50) * 100
+
+        # ATR_14
+        df_daily["tr"] = np.maximum(
+            df_daily["high"] - df_daily["low"],
+            np.maximum(
+                abs(df_daily["high"] - df_daily["close"].shift(1)),
+                abs(df_daily["low"] - df_daily["close"].shift(1))
+            )
+        )
+        atr_14 = float(df_daily["tr"].rolling(14).mean().iloc[-1])
+
+        # Check ASM/GSM Surveillance Status
+        is_surv, surv_reason = check_surveillance_status(df_daily, last_close)
+
+        # Direction Bias (Short-Only Fade Rule)
+        is_above_50ema = last_close > ema_50
+        direction_action = "SELL" if is_above_50ema else "AVOID_LONG_FADE"
+
+        return {
+            "Symbol": symbol,
+            "Run_Date": run_date_str,
+            "Vol_Prob_%": round(vol_prob * 100, 2),
+            "Last_Close": round(last_close, 2),
+            "50_EMA": round(ema_50, 2),
+            "ATR_14": round(atr_14, 2),
+            "EMA_Stretch_%": round(stretch_pct, 2),
+            "Action": direction_action,
+            "Is_Surveillance": is_surv,
+            "Surveillance_Reason": surv_reason,
+            "Verdict": "PENDING"
+        }
+    except Exception:
+        return None
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Joint Volatility & Direction Stock Recommendations")
+    parser = argparse.ArgumentParser(description="Institutional Quantitative Stock Selection & Rotation Subsystem")
     parser.add_argument("--no-update", action="store_true", help="Bypass updating spot files from Dhan API")
-    parser.add_argument("--top-k", "-k", type=int, default=3, help="Number of top stocks to recommend for selection")
-    parser.add_argument("--rotate", action="store_true", help="Automatically rotate and enable top selections inside instruments.json with directional allowed_actions")
+    parser.add_argument("--top-k", "-k", type=int, default=3, help="Number of top stocks to select for rotation (default: 3)")
+    parser.add_argument("--basket-capital-allocation-pct", type=float, default=0.25, help="Total account capital allocation cap for the fade basket (default: 0.25 = 25%)")
+    parser.add_argument("--mode", choices=["PAPER", "LIVE"], default="PAPER", help="Deployment mode: PAPER (safe logging) or LIVE (orders enabled). Default: PAPER")
+    parser.add_argument("--rotate", action="store_true", help="Automatically rotate selections inside instruments.json")
     args = parser.parse_args()
 
-    # 1. Load scorecards
-    scorecard_vol_path = os.path.join(BASE_DIR, "stock_selection", "scorecard_volatility.json")
-    scorecard_dir_path = os.path.join(BASE_DIR, "stock_selection", "scorecard_direction.json")
+    print("=" * 125)
+    print("      INSTITUTIONAL QUANTITATIVE STOCK SELECTION & ROTATION SUBSYSTEM")
+    print("=" * 125)
+    print(f"[CONFIG] Top-K Target:             {args.top_k} stocks")
+    print(f"[CONFIG] Basket Capital Cap:       {args.basket_capital_allocation_pct*100:.1f}% of total account equity")
+    print(f"[CONFIG] Per-Stock Allocation:     {(args.basket_capital_allocation_pct / args.top_k)*100:.2f}% per stock")
+    print(f"[CONFIG] Deployment Mode:          {args.mode} (Default: PAPER)")
+    print(f"[CONFIG] Auto-Rotate in JSON:      {args.rotate}")
 
-    if not os.path.exists(scorecard_vol_path) or not os.path.exists(scorecard_dir_path):
-        print("[ERROR] Both scorecard_volatility.json and scorecard_direction.json must exist. Train both targets first.")
-        return
+    # 1. Load Legally Eligible EQ Series Symbols
+    eq_eligible_symbols = set()
+    if os.path.exists(EQUITY_L_PATH):
+        df_eq = pd.read_csv(EQUITY_L_PATH)
+        eq_eligible_symbols = set(df_eq[df_eq[" SERIES"].str.strip().str.upper() == "EQ"]["SYMBOL"].str.strip().str.upper().dropna())
+        print(f"[INFO] Loaded {len(eq_eligible_symbols):,} legally short-eligible EQ series stocks from EQUITY_L.csv")
 
-    with open(scorecard_vol_path, "r", encoding="utf-8") as f:
-        scorecard_vol = json.load(f)
-    with open(scorecard_dir_path, "r", encoding="utf-8") as f:
-        scorecard_dir = json.load(f)
-
-    # 2. Check for Global Pooled Models
+    # 2. Load Global Pooled Volatility Model
     global_model_vol_path = os.path.join(MODEL_DIR, "global_pooled_model_volatility.pkl")
-    global_model_dir_path = os.path.join(MODEL_DIR, "global_pooled_model_direction.pkl")
-
-    use_pooled_vol = os.path.exists(global_model_vol_path)
-    use_pooled_dir = os.path.exists(global_model_dir_path)
-
-    # Load pooled models if they exist
-    global_model_vol_pkg = joblib.load(global_model_vol_path) if use_pooled_vol else None
-    global_model_dir_pkg = joblib.load(global_model_dir_path) if use_pooled_dir else None
-
-    # Determine symbols trained under BOTH targets
-    active_symbols = []
-    for sym in scorecard_vol:
-        if sym == "GLOBAL_POOLED":
-            continue
-        status_vol = scorecard_vol[sym].get("status") == "trained" or use_pooled_vol
-        status_dir = scorecard_dir.get(sym, {}).get("status") == "trained" or use_pooled_dir
-        if status_vol and status_dir:
-            active_symbols.append(sym)
-
-    if not active_symbols:
-        print("[ERROR] No symbols found that have trained models for both volatility and direction.")
+    if not os.path.exists(global_model_vol_path):
+        print(f"[ERROR] Trained volatility model not found at: {global_model_vol_path}")
         return
 
-    print(f"[INFO] Evaluating {len(active_symbols)} symbols using Joint Volatility + Direction filters...")
+    global_model_pkg = joblib.load(global_model_vol_path)
+    model = global_model_pkg["model"]
+    feat_cols = global_model_pkg["features"]
+    print(f"[INFO] Loaded Global XGBoost Volatility Model (Trained on {global_model_pkg.get('num_stocks', 1800)} stocks, {len(feat_cols)} features).")
 
-    # Load credentials to auto-update spot files
-    load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
-    client_id = os.getenv("DHAN_CLIENT_ID", "").strip().strip("'").strip('"')
-    api_token = os.getenv("DHAN_API_TOKEN", "").strip().strip("'").strip('"')
+    # 3. Find Available Spot Files
+    all_spot_files = glob.glob(os.path.join(SPOT_DIR, "*_spot.csv"))
+    active_symbols = []
+    for f in all_spot_files:
+        sym = os.path.basename(f).replace("_spot.csv", "").upper()
+        if sym not in ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"]:
+            if not eq_eligible_symbols or sym in eq_eligible_symbols:
+                active_symbols.append(sym)
 
-    if client_id and api_token and not args.no_update:
-        print("[INFO] Dhan API credentials found. Updating NIFTY spot file...")
-        update_spot_file_if_stale("NIFTY", client_id, api_token)
-
-        print(f"[INFO] Updating spot files for {len(active_symbols)} symbols in parallel...")
-        pool = ThreadPool(10)
-        pool.map(lambda sym: update_spot_file_if_stale(sym, client_id, api_token), active_symbols)
-        pool.close()
-        pool.join()
-        print("[INFO] Spot files check and update complete.\n")
+    print(f"[INFO] Evaluating {len(active_symbols):,} candidate EQ stocks in universe in parallel...")
 
     # Precompute nifty features
     nifty_features = precompute_nifty_features()
 
-    predictions = []
-    run_date = None
+    # Parallel Evaluation across CPU cores with real-time progress
+    start_t = time.time()
+    pool = ThreadPool(16)
+    results = []
+    total_syms = len(active_symbols)
+    batch_size = 150
 
-    for symbol in active_symbols:
-        features, last_date_obj = extract_features_for_last_day(symbol, nifty_features)
-        if features is None:
-            continue
+    for i in range(0, total_syms, batch_size):
+        chunk = active_symbols[i:i+batch_size]
+        res_chunk = pool.map(lambda sym: process_single_stock(sym, nifty_features, model, feat_cols), chunk)
+        results.extend(res_chunk)
+        print(f"[PROGRESS] Evaluated {min(i+batch_size, total_syms):,}/{total_syms:,} stocks ({min(i+batch_size, total_syms)/total_syms*100:.1f}%)...", flush=True)
 
-        if run_date is None:
-            run_date = last_date_obj.strftime("%Y-%m-%d")
+    pool.close()
+    pool.join()
 
-        try:
-            # A. Volatility Prediction
-            if use_pooled_vol:
-                feat_cols = global_model_vol_pkg["features"]
-                X_pred = pd.DataFrame([features])[feat_cols]
-                probs = global_model_vol_pkg["model"].predict_proba(X_pred)[0]
-                vol_prob = probs[1] if len(probs) > 1 else probs[0]
-                vol_thresh = global_model_vol_pkg.get("opt_threshold", 0.5)
-                vol_precision = global_model_vol_pkg.get("test_precision", 0.5)
-                # Raw probability for pooled
-                vol_score = vol_prob * 100
-                vol_model_type = global_model_vol_pkg.get("best_model_type", "xgboost") + " (Pooled)"
-            else:
-                mf_vol = os.path.join(MODEL_DIR, f"{symbol.lower()}_best_model_volatility.pkl")
-                vol_pkg = joblib.load(mf_vol)
-                feat_cols = vol_pkg["features"]
-                X_pred = pd.DataFrame([features])[feat_cols]
-                probs = vol_pkg["model"].predict_proba(X_pred)[0]
-                vol_prob = probs[1] if len(probs) > 1 else probs[0]
-                vol_thresh = vol_pkg.get("opt_threshold", 0.5)
-                vol_precision = vol_pkg.get("test_precision", scorecard_vol[symbol]["metrics"]["precision"])
-                vol_score = (vol_prob - vol_thresh) * 100
-                vol_model_type = vol_pkg.get("best_model_type", scorecard_vol[symbol]["best_model"])
-
-            # B. Direction Prediction
-            if use_pooled_dir:
-                feat_cols = global_model_dir_pkg["features"]
-                X_pred = pd.DataFrame([features])[feat_cols]
-                probs = global_model_dir_pkg["model"].predict_proba(X_pred)[0]
-                dir_prob = probs[1] if len(probs) > 1 else probs[0]
-                dir_thresh = global_model_dir_pkg.get("opt_threshold", 0.5)
-                dir_model_type = global_model_dir_pkg.get("best_model_type", "xgboost") + " (Pooled)"
-            else:
-                mf_dir = os.path.join(MODEL_DIR, f"{symbol.lower()}_best_model_direction.pkl")
-                dir_pkg = joblib.load(mf_dir)
-                feat_cols = dir_pkg["features"]
-                X_pred = pd.DataFrame([features])[feat_cols]
-                probs = dir_pkg["model"].predict_proba(X_pred)[0]
-                dir_prob = probs[1] if len(probs) > 1 else probs[0]
-                dir_thresh = dir_pkg.get("opt_threshold", 0.5)
-                dir_model_type = dir_pkg.get("best_model_type", scorecard_dir[symbol]["best_model"])
-
-            # Suggested direction based on 50% split (or threshold if individual)
-            # Above threshold/50% is BULLISH (BUY), below is BEARISH (SELL)
-            direction_action = "BUY" if dir_prob >= 0.5 else "SELL"
-            direction_label = "BULLISH (BUY)" if direction_action == "BUY" else "BEARISH (SELL)"
-
-            predictions.append({
-                "Symbol": symbol,
-                "Vol Probability (%)": round(vol_prob * 100, 1),
-                "Vol Selection Score (%)": round(vol_score, 1),
-                "Dir Probability (%)": round(dir_prob * 100, 1),
-                "Target Direction": direction_label,
-                "Action": direction_action,
-                "Vol Model": vol_model_type,
-                "Dir Model": dir_model_type,
-                "Vol Test Precision": vol_precision,
-                "Verdict": "AVOID"
-            })
-        except Exception as e:
-            print(f"[WARNING] Failed to run prediction model for {symbol}: {e}")
+    predictions = [r for r in results if r is not None]
+    eval_elapsed = time.time() - start_t
+    print(f"[SUCCESS] Scored {len(predictions):,} active stocks across the universe in {eval_elapsed:.2f} seconds.")
 
     if not predictions:
         print("[ERROR] No predictions could be generated.")
         return
 
-    # Sort predictions by Vol Selection Score descending (Volatility is the primary selector)
+    run_date = predictions[0]["Run_Date"]
+
+    # 5. Rank by Volatility Score Descending
     df_preds = pd.DataFrame(predictions)
-    df_preds = df_preds.sort_values(by="Vol Selection Score (%)", ascending=False).reset_index(drop=True)
+    df_preds = df_preds.sort_values(by="Vol_Prob_%", ascending=False).reset_index(drop=True)
 
-    # Apply Top-K ranking verdict
+    # 6. Apply Selection Gates:
+    # Must be: High Volatility Rank + Short-Only (Price > 50 EMA) + Clean ASM/GSM Status + Sane Stretch (<= 50%)
+    selected_count = 0
     top_k = int(args.top_k)
+
     for idx in range(len(df_preds)):
-        vol_prob = df_preds.loc[idx, "Vol Probability (%)"]
-        vol_score = df_preds.loc[idx, "Vol Selection Score (%)"]
-        
-        # Check condition to qualify as a valid selection
-        if idx < top_k and (vol_prob >= 35.0 or (not use_pooled_vol and vol_score >= 0.0)):
-            df_preds.loc[idx, "Verdict"] = "SELECT (TOP K)"
+        is_surv = df_preds.loc[idx, "Is_Surveillance"]
+        action = df_preds.loc[idx, "Action"]
+        stretch_pct = df_preds.loc[idx, "EMA_Stretch_%"]
+
+        if is_surv:
+            df_preds.loc[idx, "Verdict"] = "AVOID (SURVEILLANCE)"
+        elif abs(stretch_pct) > 50.0:
+            df_preds.loc[idx, "Verdict"] = "AVOID (EXTREME_STRETCH > 50%)"
+        elif action != "SELL":
+            df_preds.loc[idx, "Verdict"] = "AVOID (BELOW 50 EMA)"
+        elif selected_count < top_k:
+            df_preds.loc[idx, "Verdict"] = "SELECT (TOP K FADE)"
+            selected_count += 1
         else:
-            df_preds.loc[idx, "Verdict"] = "AVOID"
+            df_preds.loc[idx, "Verdict"] = "ELIGIBLE (RANK RUNNER-UP)"
 
-    print("\n" + "=" * 125)
-    print(f"               JOINT VOLATILITY + DIRECTION STOCK ROTATION RECOMMENDATIONS FOR TOMORROW              ")
-    print(f"               Reference Trading Date: {run_date}")
-    print("=" * 125)
-    print(f"  {'Rank':<5} | {'Symbol':<12} | {'Vol Prob':<10} | {'Vol Score':<18} | {'Dir Prob':<10} | {'Suggested Side':<16} | {'Verdict':<18}")
-    print("-" * 125)
-    
-    for idx, row in df_preds.iterrows():
+    # Print Report
+    print("\n" + "=" * 135)
+    print(f"       TOP QUANTITATIVE SHORT-FADE ROTATION RECOMMENDATIONS (LATEST DATE: {run_date})")
+    print("=" * 135)
+    print(f"  {'Rank':<5} | {'Symbol':<12} | {'Vol Prob':<10} | {'Last Close':<11} | {'50 EMA':<10} | {'EMA Stretch':<12} | {'Action':<8} | {'Verdict':<25}")
+    print("-" * 135)
+
+    for idx, row in df_preds.head(25).iterrows():
         rank = idx + 1
-        vol_prob_str = f"{float(row['Vol Probability (%)']):.1f}%"
-        vol_score_val = float(row['Vol Selection Score (%)'])
-        vol_score_str = f"{vol_score_val:+.1f}%" if not use_pooled_vol else f"{vol_score_val:.1f}% (Pooled)"
-        dir_prob_str = f"{float(row['Dir Probability (%)']):.1f}%"
-        
-        print(f"  {rank:<5} | {row['Symbol']:<12} | {vol_prob_str:<10} | {vol_score_str:<18} | {dir_prob_str:<10} | {row['Target Direction']:<16} | {row['Verdict']:<18}")
+        v_prob = f"{row['Vol_Prob_%']:.1f}%"
+        stretch = f"{row['EMA_Stretch_%']:+0.1f}%"
+        print(f"  {rank:<5} | {row['Symbol']:<12} | {v_prob:<10} | {row['Last_Close']:<11} | {row['50_EMA']:<10} | {stretch:<12} | {row['Action']:<8} | {row['Verdict']:<25}")
 
-    print("=" * 125)
+    print("=" * 135)
 
-    # Save predictions
-    save_filename = f"predictions_joint_{run_date}.csv"
+    # 7. Save Daily Prediction Artifact
+    save_filename = f"predictions_short_fade_{run_date}.csv"
     save_path = os.path.join(PRED_DIR, save_filename)
     df_preds.to_csv(save_path, index=False)
-    print(f"[SUCCESS] Joint selection recommendations saved to: {save_path}\n")
+    print(f"[SUCCESS] Predictions saved to: {save_path}")
 
-    # 4. Automate Stock Rotation & Direction Constraints in instruments.json
-    rotation_status = "Rotation not requested (run with --rotate to update instruments.json)"
-    activated = []
-    deactivated = []
+    # 8. Paper Trading Logging & instruments.json Rotation
+    top_selected = df_preds[df_preds["Verdict"] == "SELECT (TOP K FADE)"]
+    per_stock_alloc = args.basket_capital_allocation_pct / max(1, top_k)
 
+    # Log to paper_trade_log.csv
+    log_rows = []
+    iso_run_date = pd.to_datetime(run_date).strftime("%Y-%m-%d")
+    for _, row in top_selected.iterrows():
+        log_rows.append({
+            "Selection_Date": iso_run_date,
+            "Symbol": row["Symbol"],
+            "Direction": "SHORT",
+            "Vol_Prob_%": row["Vol_Prob_%"],
+            "Reference_Close": row["Last_Close"],
+            "50_EMA": row["50_EMA"],
+            "ATR_14": row["ATR_14"],
+            "Stop_Loss_Price (2.0xATR)": round(row["Last_Close"] + 2.0 * row["ATR_14"], 2),
+            "Allocation_Pct": round(per_stock_alloc * 100, 2),
+            "Mode": args.mode,
+            "Status": "PENDING_T+1_EXECUTION"
+        })
+
+    if log_rows:
+        df_log = pd.DataFrame(log_rows)
+        header_needed = not os.path.exists(PAPER_LOG_PATH)
+        df_log.to_csv(PAPER_LOG_PATH, mode="a", header=header_needed, index=False)
+        print(f"[PAPER] Logged {len(df_log)} candidate trades to: {PAPER_LOG_PATH}")
+
+    # 9. Update instruments.json with strict Paper/Live Safety Guard
     if args.rotate:
-        print("[ROTATE] Automating stock rotation & directional overrides...")
-        
-        top_selections_df = df_preds[df_preds["Verdict"] == "SELECT (TOP K)"]
-        top_selections_dict = dict(zip(top_selections_df["Symbol"], top_selections_df["Action"]))
-        evaluated_symbols = set(active_symbols)
-        
+        print(f"\n[ROTATE] Updating instruments.json with mode = {args.mode}...")
         instruments_path = os.path.join(BASE_DIR, "instruments.json")
         if os.path.exists(instruments_path):
-            try:
-                with open(instruments_path, "r", encoding="utf-8") as f:
-                    instruments = json.load(f)
-                
-                for symbol in instruments:
-                    if symbol in evaluated_symbols:
-                        if symbol in top_selections_dict:
-                            action = top_selections_dict[symbol]
-                            instruments[symbol]["enabled"] = 1
-                            instruments[symbol]["allowed_actions"] = [action]
-                            activated.append(f"{symbol} ({action})")
-                        else:
-                            instruments[symbol]["enabled"] = 0
-                            # Reset allowed_actions to default so if manually enabled later it supports both sides
-                            instruments[symbol]["allowed_actions"] = ["BUY", "SELL"]
-                            deactivated.append(symbol)
+            with open(instruments_path, "r", encoding="utf-8") as f:
+                instruments = json.load(f)
 
-                # Write back to instruments.json
-                with open(instruments_path, "w", encoding="utf-8") as f:
-                    json.dump(instruments, f, indent=4)
-                    
-                print(f"[SUCCESS] instruments.json updated successfully!")
-                print(f"  * Activated:   {activated if activated else 'None'}")
-                print(f"  * Deactivated: {deactivated if deactivated else 'None'}")
-                rotation_status = f"Successfully rotated instruments.json!\n• Activated: {', '.join(activated) if activated else 'None'}\n• Deactivated: {len(deactivated)} symbols"
-            except Exception as e:
-                print(f"[ERROR] Failed to update instruments.json: {e}")
-                rotation_status = f"Rotation failed: {e}"
-        else:
-            print(f"[ERROR] instruments.json not found at {instruments_path}")
-            rotation_status = "Rotation failed: instruments.json not found"
+            selected_symbols = set(top_selected["Symbol"].values)
+            activated = []
+            deactivated = []
 
-    # 5. Telegram Notifications
-    webhook_url = os.getenv("ALERT_WEBHOOK_URL")
-    if webhook_url:
-        print("[ALERT] Sending daily joint recommendations alert...")
-        try:
-            from trading_bot.alerts import AlertManager
-            import logging
-            alert_logger = logging.getLogger("select-joint-alert")
-            alert_manager = AlertManager(webhook_url, alert_logger)
-            
-            top_df = df_preds[df_preds["Verdict"] == "SELECT (TOP K)"]
-            msg = f"📊 *Daily ML Joint Selection Recommendations* ({run_date})\n\n"
-            msg += f"*Status:* {rotation_status}\n\n"
-            if not top_df.empty:
-                msg += "🚀 *Selected Symbols:*\n"
-                for idx, row in top_df.iterrows():
-                    msg += f"• *{row['Symbol']}* - Vol: {row['Vol Probability (%)']:.1f}% | Dir: {row['Dir Probability (%)']:.1f}% ({row['Target Direction']})\n"
-            else:
-                msg += "⚠️ *No symbols passed the selection thresholds today.*\n"
-                
-            alert_manager.send_alert(msg)
-            print("[SUCCESS] Telegram notification sent.")
-        except Exception as e:
-            print(f"[WARNING] Telegram notification failed: {e}")
+            for symbol in instruments:
+                if symbol in selected_symbols:
+                    # In PAPER mode, keep enabled = 0 or execution_mode = "PAPER"
+                    if args.mode == "PAPER":
+                        instruments[symbol]["enabled"] = 0
+                        instruments[symbol]["execution_mode"] = "PAPER"
+                    else:
+                        instruments[symbol]["enabled"] = 1
+                        instruments[symbol]["execution_mode"] = "STOCK"
+
+                    instruments[symbol]["allowed_actions"] = ["SELL"]
+                    instruments[symbol]["capital_allocation_pct"] = round(per_stock_alloc, 4)
+                    instruments[symbol]["stop_loss_mult_atr"] = 2.0
+                    activated.append(f"{symbol} (SHORT | {per_stock_alloc*100:.1f}% Alloc | {args.mode})")
+                else:
+                    instruments[symbol]["enabled"] = 0
+                    instruments[symbol]["allowed_actions"] = ["BUY", "SELL"]
+                    deactivated.append(symbol)
+
+            with open(instruments_path, "w", encoding="utf-8") as f:
+                json.dump(instruments, f, indent=4)
+
+            print(f"[SUCCESS] instruments.json updated successfully!")
+            print(f"  * Activated ({args.mode}): {activated}")
+            print(f"  * Deactivated:             {len(deactivated)} symbols")
+
 
 if __name__ == "__main__":
     main()

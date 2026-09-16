@@ -43,7 +43,7 @@ AI agents MUST obey these non-negotiable repository rules:
    - ALWAYS run shell/Python commands using `..\venv\Scripts\python.exe` on Windows.
    - NEVER suggest or execute Docker commands or reliance on Docker containers.
 2. **Strategy Range Loop Rule:**
-   - All strategy registration loops, configuration registries, and backtest runner loops MUST dynamically iterate across all registered strategies (`range(1, 21)`).
+   - All strategy registration loops, configuration registries, and backtest runner loops MUST dynamically iterate across all registered strategies (`range(1, 24)` covering strategies 1-23 + BTST).
 3. **Database Driver Convention:**
    - `DATABASE_URL` uses `asyncpg` (async driver) for FastAPI.
    - `DB_SYNC_URL` uses `psycopg2` (sync driver) for Alembic migrations.
@@ -57,3 +57,6 @@ AI agents MUST obey these non-negotiable repository rules:
 7. **Git Destructive Action Prevention:**
    - NEVER run destructive git commands like \git restore\, \git reset\, or \git clean\ without EXPLICIT permission from the user.
    - If you make a mistake editing a file, use IDE editing tools (\multi_replace_file_content\) or restore from IDE backups/transcript logs, rather than relying on git which may destroy the user's uncommitted work.
+8. **Live Order Routing & Exit Safeguards:**
+   - Always route live orders through `place_order_with_margin_fallback` to absorb Dhan RMS margin spikes gracefully.
+   - For `local_exit_monitoring`, preserve `broker_safety_sl` logic: native Super Order at entry, and `modify_super_order_sl` (`PUT /super/orders/{orderId}`) to shift the exchange-resting `STOP_LOSS_LEG` on breakeven.

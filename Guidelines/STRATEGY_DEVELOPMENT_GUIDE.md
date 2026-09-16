@@ -247,18 +247,34 @@ Strategies in SATP can use one of four primary exit execution modes configured v
 
 ---
 
-## 8. Broker-Side vs. Local Monitoring (`local_exit_monitoring`)
+## 8. Broker-Side vs. Local Monitoring vs. Hybrid Crash-Proof Mode
 
-For certain exit modes (`ATR` and `POINTS`), you can choose whether the Stop Loss, Take Profit, and Trailing stop levels are monitored locally on your machine by the Python bot (`local_exit_monitoring: true`) or placed directly on the broker's exchange servers as Bracket/Super Orders (`local_exit_monitoring: false`).
+For exit modes (`ATR` and `POINTS`), you can configure how Stop Loss, Take Profit, and Breakeven levels are managed across three operational architectures:
 
-*   **`local_exit_monitoring: true`**:
-    *   **How it works**: Places a standard entry limit/market order on Dhan. Once filled, the bot tracks the option premium or stock price in a high-frequency polling loop. When a target, stop loss, or trailing stop trigger is hit, the bot cancels any pending orders for the contract and sends a market square-off order.
-    *   **Advantages**: Bypasses broker-side Bracket Order restrictions (e.g., tick size alignment issues, minimum distance limits, strike selection limits, and product type constraints like forced intraday square-offs).
-    *   **Defaults**: Automatically set to `true` if `exit_mode` is `"SWING"`, `"SWING_CONTRACT"`, or `"POINTS"`.
-*   **`local_exit_monitoring: false`**:
-    *   **How it works**: Places the entry order along with linked stop loss, take profit, and trailing stop points directly using Dhan's native Bracket/Super Order API.
+*   **`local_exit_monitoring: false` (Exchange Bracket / Super Order)**:
+    *   **How it works**: Places the entry order along with linked stop loss, take profit, and trailing stop points directly using Dhan's native Super Order API.
     *   **Advantages**: Exits execute instantly on exchange matching engines, even if your local bot loses power or internet connectivity.
+    *   **Limitations**: Fixed broker rules, no dynamic breakeven shifting or flexible multi-stage profit targets.
     *   **Defaults**: Automatically set to `false` if `exit_mode` is `"ATR"`.
+
+*   **`local_exit_monitoring: true` (Local Dynamic Monitoring)**:
+    *   **How it works**: Places a standard entry limit/market order on Dhan. Once filled, the bot tracks the option premium or stock price in a high-frequency polling loop. When a target, stop loss, or trailing stop trigger is hit, the bot cancels pending orders and sends a market square-off order.
+    *   **Advantages**: Bypasses broker-side Bracket Order restrictions (e.g., tick size alignment, minimum distance limits, product type constraints). Supports dynamic trailing and multi-stage targets.
+    *   **Defaults**: Automatically set to `true` if `exit_mode` is `"SWING"`, `"SWING_CONTRACT"`, or `"POINTS"`.
+
+*   **`local_exit_monitoring: true` + `broker_safety_sl: true` (Hybrid Crash-Proof Mode - Recommended)**:
+    *   **How it works**: Best of both worlds! At trade entry, the bot dispatches a real native Dhan Super Order with a Hard Stop Loss (`opt_sl`) resting directly on the exchange matching engine. Concurrently, the local Python bot runs high-frequency monitoring for profit targets, dynamic trailing, and breakeven.
+    *   **Exchange-Side Breakeven Sliding**: When the local loop triggers the breakeven threshold (`points_be_sell`), the bot issues an API call to `DhanAPIWrapper.modify_super_order_sl(order_id, entry_price)` (`PUT /super/orders/{orderId}`). Dhan's exchange server instantly modifies the resting `STOP_LOSS_LEG` to the trade entry price.
+    *   **Fail-Safe Advantage**: If AWS EC2 loses power, the operating system kernel panics, or the internet drops, your position is NEVER left naked. It has a real exchange-resting stop loss that protects your capital at all times.
+
+---
+
+### Dynamic Conviction Sizing & Dynamic Profit Targets
+
+When developing strategies with macro trend filters (like Strategy 22's 15m Supertrend filter):
+1. **Dynamic Lot Sizing (`enable_dynamic_conviction: true`)**: Deploys `num_lots_sell` (e.g., 1 lot) on normal signals, and scales up to `num_lots_high_conviction` (e.g., 2 lots) when macro trend confirms high momentum (`Conviction >= 1.5`).
+2. **Dynamic Extended Targets (`points_target_high_conviction`)**: Standard signals exit at `points_target_sell` (e.g. 25 pts), while high-conviction signals automatically ride the trend up to `points_target_high_conviction` (e.g. 45 pts on NIFTY, 75 pts on BANKNIFTY, 90 pts on SENSEX), boosting overall strategy expectancy significantly.
+3. **Graceful Margin Downsizing Fallback**: In live execution, if Dhan RMS rejects a high-conviction order due to an unexpected margin spike, the execution wrapper automatically downscales the order to base lots or 1 lot, ensuring profitable trade setups are never missed.
 
 ---
 
@@ -455,6 +471,7 @@ Here is a complete catalog of all strategies registered in the platform under `s
 | **Strategy_20** | [Strategy20](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/strategies/strategy_20.py) | 15-Min Trend Option Writer | 15-Minute / 1-Minute | **15-Min Trend-Directional Option Selling System**. Sells PE in uptrends and CE in downtrends at 09:30 AM with 35% SL and +₹2,000 daily target. |
 | **Strategy_21** | [Strategy21](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/strategies/strategy_21.py) | NIFTY Institutional Multi-Pivot Reversal | 5-Minute (Resampled) | **Dhan MTF Weekly CPR (#16) + Daily CPR (#15) + Cam L3/H3 + PDH/PDL**. Rejection wick $\ge 50\%$, 2.2R asymmetric target, max 2 trades/day. Option buying (CE on bullish bounces, PE on bearish rejections). |
 | **Strategy_22** | [Strategy22](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/strategies/strategy_22.py) | Triple Momentum Enhanced (TM-Pro) | 5-Minute (Resampled) | **High-Win-Rate 5m Trend Breakout Option Seller**. Triple EMA (8, 18, 30) with dual positive slope acceleration, Supertrend 10/2.5 volatility gate, rising ADX momentum, and anti-stretch overextension filter. +₹4.08L Net PnL (78.9% WR) over 500 days. |
+| **Strategy_23** | [Strategy23](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/strategies/strategy_23.py) | Stealth Absorption Multi-Day Swing (S-AMS) | 1-Min / Multi-Day | **Institutional Volume Absorption Cash Equity Swing Engine**. 10m Opening Box (09:15-09:25) with RVOL $\ge 1.5\times$ and Range $\le 0.8\%$. Triggers breakout buy before 11:00 AM; Stop at Box Low; Breakeven at +2.5%; Trailing Stop 2.0% behind peak after +4.0%; Max Hold 10 Days. +₹12.2L net profit (1.92 PF) on 3-year data. |
 | **Strategy_BTST** | [StrategyBTST](file:///g:/100%20Days%20of%20code/boxdata/Live%20trading/nifty_options_aws_deployment/strategies/strategy_btst.py) | Buy Today Sell Tomorrow | Daily/5-Minute | Analyzes afternoon price action (at 14:50:00). Triggers CE/PE buy entries to capture overnight gap returns when price breaks previous-day highs/lows with strong RSI. |
 
 

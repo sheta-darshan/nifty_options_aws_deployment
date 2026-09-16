@@ -51,20 +51,33 @@ strike_step_history.json
 # ===========================
 backups/
 *.bak
-instruments.json.bak
+*.bak_*
+instruments.json.bak*
 
 # ===========================
 # TEST / SCRATCH FILES
 # ===========================
 scratch/
+scratch_*.py
+scratch_*.json
+print_parity_report.py
 Test_files/
 test_trades_log.csv
 gemini-code-*.py
 
 # ===========================
-# GENERATED DATA
+# GENERATED DATA & LOGS
 # ===========================
 stock_selection/data/
+stock_selection/paper_trade_log.csv
+*_trades.csv
+*_trade_log.csv
+*mining_results.csv
+*experiment_results.csv
+*grid_results.csv
+*summary.csv
+research_and_development/*.csv
+research_and_development/*.json
 
 # ===========================
 # IDE & OS

@@ -138,16 +138,17 @@ class MultiAccountManager:
             self.logger.warning("[MULTI_ACC] No accounts loaded! Order dispatch skipped.")
             return results
 
-        futures = {}
-        for acc in self.accounts:
+        futures = []
+        for i, acc in enumerate(self.accounts):
             name = acc['name']
             api = acc['api']
             
             try:
                 func = getattr(api, method_name, None)
                 if func:
-                    self.logger.info(f"[MULTI_ACC] >>> Dispatching concurrently to {name}...")
-                    futures[name] = self.executor.submit(func, **kwargs)
+                    self.logger.info(f"[MULTI_ACC] >>> Dispatching concurrently to {name} (idx={i})...")
+                    fut = self.executor.submit(func, **kwargs)
+                    futures.append((name, fut))
                 else:
                     self.logger.error(f"[MULTI_ACC] Method {method_name} not found on API wrapper for {name}")
                     results.append({'account': name, 'error': f"Method {method_name} not found"})
@@ -155,7 +156,7 @@ class MultiAccountManager:
                 self.logger.error(f"[MULTI_ACC] Submission failed for {name}: {e}")
                 results.append({'account': name, 'error': str(e)})
 
-        for name, future in futures.items():
+        for name, future in futures:
             try:
                 resp = future.result(timeout=15)
                 results.append({'account': name, 'response': resp})

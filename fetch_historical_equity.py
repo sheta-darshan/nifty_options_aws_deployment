@@ -25,6 +25,35 @@ SCRIP_MASTER_CACHE = os.path.join(BASE_DIR, "dhan_equity_master_cache.csv")
 EQUITY_LIST_FILE = os.path.join(BASE_DIR, "EQUITY_L.csv")
 HOLIDAYS_FILE = os.path.join(BASE_DIR, "holidays_cache.json")
 
+KNOWN_INDICES = {
+    "NIFTY": {"security_id": "13", "exchange_segment": "IDX_I", "instrument": "INDEX"},
+    "BANKNIFTY": {"security_id": "25", "exchange_segment": "IDX_I", "instrument": "INDEX"},
+    "FINNIFTY": {"security_id": "27", "exchange_segment": "IDX_I", "instrument": "INDEX"},
+    "MIDCPNIFTY": {"security_id": "44", "exchange_segment": "IDX_I", "instrument": "INDEX"},
+    "SENSEX": {"security_id": "51", "exchange_segment": "IDX_I", "instrument": "INDEX"},
+}
+
+def load_index_instruments():
+    """
+    Loads known indices and augments with any INDEX configurations from instruments.json.
+    """
+    indices = dict(KNOWN_INDICES)
+    inst_path = os.path.join(BASE_DIR, "instruments.json")
+    if os.path.exists(inst_path):
+        try:
+            with open(inst_path, "r") as f:
+                d = json.load(f)
+            for k, v in d.items():
+                if v.get("type") == "INDEX" or v.get("exchange_segment") == "IDX_I":
+                    indices[k.upper()] = {
+                        "security_id": str(v.get("security_id")),
+                        "exchange_segment": v.get("exchange_segment", "IDX_I"),
+                        "instrument": "INDEX"
+                    }
+        except Exception:
+            pass
+    return indices
+
 class ThreadSafeRateLimiter:
     """
     Coordinates multi-threaded HTTP calls to stay safely within Dhan API limits (e.g. 8 req/s).
@@ -91,7 +120,8 @@ def get_last_completed_trading_session(now=None):
 def get_scrip_master_mapping():
     """
     Downloads or loads cached Dhan scrip master and creates a dictionary
-    mapping: SYMBOL -> security_id for NSE Equity stocks.
+    mapping: SYMBOL -> dict(security_id, exchange_segment, instrument)
+    for both NSE Equity stocks and market Indices.
     """
     rebuild = False
     if not os.path.exists(SCRIP_MASTER_CACHE):
@@ -130,47 +160,73 @@ def get_scrip_master_mapping():
         except Exception as e:
             print(f"[WARNING] Could not fetch Dhan scrip master online: {e}. Falling back to local cache.")
 
+    mapping = {}
     if os.path.exists(SCRIP_MASTER_CACHE):
         df_cache = pd.read_csv(SCRIP_MASTER_CACHE)
-        mapping = {}
         for _, row in df_cache.iterrows():
             sym = str(row['SYMBOL']).strip().upper()
             sec_id = str(row['SECURITY_ID']).strip()
-            mapping[sym] = sec_id
-        return mapping
-    else:
+            mapping[sym] = {
+                "security_id": sec_id,
+                "exchange_segment": "NSE_EQ",
+                "instrument": "EQUITY"
+            }
+
+    # Augment with indices (Indices take precedence if name matches)
+    index_map = load_index_instruments()
+    for sym, info in index_map.items():
+        mapping[sym] = info
+
+    if not mapping:
         raise FileNotFoundError("[ERROR] No scrip master available to map stock symbols to Dhan security IDs.")
 
-def get_target_symbols(args_symbols=None, csv_path=EQUITY_LIST_FILE, limit=None):
+    return mapping
+
+def get_target_symbols(args_symbols=None, csv_path=EQUITY_LIST_FILE, limit=None, indices_only=False, no_indices=False):
     """
-    Retrieves the list of stock symbols to process.
+    Retrieves the list of stock and index symbols to process.
     """
+    index_symbols = list(load_index_instruments().keys())
+
     if args_symbols:
         symbols = [s.strip().upper() for s in args_symbols if s.strip()]
         return symbols
 
-    if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"[ERROR] Equity list CSV not found at: {csv_path}")
+    if indices_only:
+        return index_symbols
 
-    df_eq = pd.read_csv(csv_path)
-    sym_col = None
-    for c in ['SYMBOL', 'Symbol', 'symbol', 'INSTRUMENT', 'Instrument']:
-        if c in df_eq.columns:
-            sym_col = c
-            break
-    if not sym_col:
-        sym_col = df_eq.columns[0]
+    stock_symbols = []
+    if os.path.exists(csv_path):
+        df_eq = pd.read_csv(csv_path)
+        sym_col = None
+        for c in ['SYMBOL', 'Symbol', 'symbol', 'INSTRUMENT', 'Instrument']:
+            if c in df_eq.columns:
+                sym_col = c
+                break
+        if not sym_col:
+            sym_col = df_eq.columns[0]
 
-    if 'SERIES' in df_eq.columns:
-        df_eq = df_eq[df_eq['SERIES'].astype(str).str.strip().str.upper() == 'EQ']
+        if 'SERIES' in df_eq.columns:
+            df_eq = df_eq[df_eq['SERIES'].astype(str).str.strip().str.upper() == 'EQ']
 
-    symbols = df_eq[sym_col].astype(str).str.strip().str.upper().tolist()
-    symbols = [s for s in symbols if s and s != 'NAN']
+        stock_symbols = df_eq[sym_col].astype(str).str.strip().str.upper().tolist()
+        stock_symbols = [s for s in stock_symbols if s and s != 'NAN']
 
     if limit and limit > 0:
-        symbols = symbols[:limit]
+        stock_symbols = stock_symbols[:limit]
 
-    return symbols
+    if no_indices:
+        return stock_symbols
+    else:
+        # Prepend indices so they are synchronized first
+        combined = []
+        for idx in index_symbols:
+            if idx not in combined:
+                combined.append(idx)
+        for stk in stock_symbols:
+            if stk not in combined:
+                combined.append(stk)
+        return combined
 
 def get_last_recorded_timestamp(filepath):
     """
@@ -204,7 +260,7 @@ def get_last_recorded_timestamp(filepath):
 
     return None
 
-def fetch_intraday_chunks(sec_id, start_dt, end_dt, client_id=CLIENT_ID, api_token=API_TOKEN, verbose=False):
+def fetch_intraday_chunks(sec_id, start_dt, end_dt, exchange_segment="NSE_EQ", instrument="EQUITY", client_id=CLIENT_ID, api_token=API_TOKEN, verbose=False):
     """
     Downloads 1-minute OHLCV candles from Dhan API in 30-day chunks with rate limiting and connection pooling.
     """
@@ -225,8 +281,8 @@ def fetch_intraday_chunks(sec_id, start_dt, end_dt, client_id=CLIENT_ID, api_tok
 
         payload = {
             "securityId": str(sec_id),
-            "exchangeSegment": "NSE_EQ",
-            "instrument": "EQUITY",
+            "exchangeSegment": exchange_segment,
+            "instrument": instrument,
             "interval": "1",
             "fromDate": current.strftime("%Y-%m-%d 09:15:00"),
             "toDate": chunk_end.strftime("%Y-%m-%d 15:30:00")
@@ -283,10 +339,14 @@ def fetch_intraday_chunks(sec_id, start_dt, end_dt, client_id=CLIENT_ID, api_tok
     else:
         return pd.DataFrame()
 
-def sync_stock_historical_data(symbol, sec_id, years=5.0, force_full=False, dry_run=False, verbose=False, last_session_cutoff=None):
+def sync_stock_historical_data(symbol, inst_info, years=5.0, force_full=False, dry_run=False, verbose=False, last_session_cutoff=None):
     """
-    Performs full or incremental sync for a single stock symbol.
+    Performs full or incremental sync for a single stock or index symbol.
     """
+    sec_id = inst_info.get("security_id") if isinstance(inst_info, dict) else str(inst_info)
+    exch_seg = inst_info.get("exchange_segment", "NSE_EQ") if isinstance(inst_info, dict) else "NSE_EQ"
+    instrument = inst_info.get("instrument", "EQUITY") if isinstance(inst_info, dict) else "EQUITY"
+
     out_file = os.path.join(DATA_DIR, f"{symbol.lower()}_spot.csv")
     now = datetime.now()
 
@@ -322,7 +382,14 @@ def sync_stock_historical_data(symbol, sec_id, years=5.0, force_full=False, dry_
             "to": now.strftime("%Y-%m-%d %H:%M")
         }
 
-    df_new = fetch_intraday_chunks(sec_id, start_date, now, verbose=verbose)
+    df_new = fetch_intraday_chunks(
+        sec_id=sec_id, 
+        start_dt=start_date, 
+        end_dt=now, 
+        exchange_segment=exch_seg, 
+        instrument=instrument, 
+        verbose=verbose
+    )
 
     if df_new.empty:
         if not is_incremental:
@@ -355,10 +422,12 @@ def sync_stock_historical_data(symbol, sec_id, years=5.0, force_full=False, dry_
     }
 
 def main():
-    parser = argparse.ArgumentParser(description="High-Speed Incremental Historical Data Ingestion Engine for NSE Stocks")
-    parser.add_argument("--years", type=float, default=5.0, help="Years of history for new stocks (default: 5.0)")
+    parser = argparse.ArgumentParser(description="High-Speed Incremental Historical Data Ingestion Engine for NSE Stocks & Indices")
+    parser.add_argument("--years", type=float, default=5.0, help="Years of history for new instruments (default: 5.0)")
     parser.add_argument("--csv", type=str, default=EQUITY_LIST_FILE, help="Path to EQUITY_L.csv stock list")
-    parser.add_argument("--symbols", nargs="+", default=None, help="Target specific stock symbols (e.g. --symbols RELIANCE TCS)")
+    parser.add_argument("--symbols", nargs="+", default=None, help="Target specific stock or index symbols (e.g. --symbols NIFTY BANKNIFTY RELIANCE)")
+    parser.add_argument("--indices-only", action="store_true", help="Sync only index spot files (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY, SENSEX)")
+    parser.add_argument("--no-indices", action="store_true", help="Sync only equity stocks without indices")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of stocks to process")
     parser.add_argument("--workers", type=int, default=5, help="Number of concurrent download worker threads (default: 5)")
     parser.add_argument("--force-full", action="store_true", help="Force full redownload instead of incremental update")
@@ -367,7 +436,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 90)
-    print("      INSTITUTIONAL HIGH-SPEED EQUITY HISTORICAL INGESTION ENGINE (DHAN API)")
+    print("   INSTITUTIONAL HIGH-SPEED HISTORICAL INGESTION ENGINE (NSE STOCKS & INDICES)")
     print("=" * 90)
 
     if not CLIENT_ID or not API_TOKEN:
@@ -381,11 +450,17 @@ def main():
 
     print("\n[STEP 1] Loading Dhan Scrip Master Mapping...")
     mapping = get_scrip_master_mapping()
-    print(f"Loaded mapping with {len(mapping)} active NSE equity securities.")
+    print(f"Loaded mapping with {len(mapping)} active securities & indices.")
 
-    print("\n[STEP 2] Resolving Target Stock Symbols...")
-    symbols = get_target_symbols(args.symbols, args.csv, args.limit)
-    print(f"Total symbols in universe: {len(symbols)}")
+    print("\n[STEP 2] Resolving Target Symbols...")
+    symbols = get_target_symbols(
+        args_symbols=args.symbols, 
+        csv_path=args.csv, 
+        limit=args.limit,
+        indices_only=args.indices_only,
+        no_indices=args.no_indices
+    )
+    print(f"Total symbols in target queue: {len(symbols)}")
 
     # Pre-Flight In-Memory Disk Scan (< 0.2s)
     print("\n[STEP 3] Running Instant Pre-Flight Disk Scan...")
@@ -396,13 +471,13 @@ def main():
     scan_missing_id = []
 
     for sym in symbols:
-        sec_id = mapping.get(sym)
-        if not sec_id:
+        inst_info = mapping.get(sym)
+        if not inst_info:
             scan_missing_id.append(sym)
             continue
         
         if args.force_full:
-            scan_needs_sync.append((sym, sec_id, False))
+            scan_needs_sync.append((sym, inst_info, False))
             continue
 
         out_file = os.path.join(DATA_DIR, f"{sym.lower()}_spot.csv")
@@ -411,35 +486,35 @@ def main():
         if last_ts is not None and last_ts >= (last_session - timedelta(minutes=20)):
             scan_up_to_date.append((sym, str(last_ts)))
         elif last_ts is not None:
-            scan_needs_sync.append((sym, sec_id, True)) # Incremental delta
+            scan_needs_sync.append((sym, inst_info, True)) # Incremental delta
         else:
-            scan_needs_sync.append((sym, sec_id, False)) # Full init
+            scan_needs_sync.append((sym, inst_info, False)) # Full init
 
     scan_elapsed = time.time() - t0_scan
     print("=" * 90)
     print(f"  Instant Pre-Scan Completed in {scan_elapsed:.3f}s:")
-    print(f"  * Already Up-to-Date:        {len(scan_up_to_date)} stocks (Skipped instantly)")
-    print(f"  * Require Delta / Full Sync: {len(scan_needs_sync)} stocks")
-    print(f"  * Missing Security IDs:      {len(scan_missing_id)} stocks")
+    print(f"  * Already Up-to-Date:        {len(scan_up_to_date)} instruments (Skipped instantly)")
+    print(f"  * Require Delta / Full Sync: {len(scan_needs_sync)} instruments")
+    print(f"  * Missing Security IDs:      {len(scan_missing_id)} instruments")
     print("=" * 90)
 
     if not scan_needs_sync:
-        print("\n[ALL DATA CURRENT] All stock historical datasets are 100% up-to-date! No downloads needed.")
+        print("\n[ALL DATA CURRENT] All instrument historical datasets are 100% up-to-date! No downloads needed.")
         return
 
-    # Multi-Threaded Execution for Pending Stocks
-    print(f"\n[STEP 4] Processing {len(scan_needs_sync)} stocks with {args.workers} concurrent workers...")
+    # Multi-Threaded Execution for Pending Instruments
+    print(f"\n[STEP 4] Processing {len(scan_needs_sync)} instruments with {args.workers} concurrent workers...")
     synced_count = 0
     up_to_date_count = len(scan_up_to_date)
     error_count = 0
     start_time = time.time()
 
     def process_symbol_task(task_data):
-        sym, sec_id, is_inc = task_data
+        sym, inst_info, is_inc = task_data
         try:
             res = sync_stock_historical_data(
                 symbol=sym,
-                sec_id=sec_id,
+                inst_info=inst_info,
                 years=args.years,
                 force_full=args.force_full,
                 dry_run=args.dry_run,
@@ -483,9 +558,9 @@ def main():
     print("\n" + "=" * 90)
     print("                         DATA INGESTION SUMMARY REPORT")
     print("=" * 90)
-    print(f"Total Target Stocks:      {len(symbols)}")
+    print(f"Total Target Instruments: {len(symbols)}")
     print(f"Already Up-To-Date:       {up_to_date_count}")
-    print(f"Synced / Updated Stocks:  {synced_count}")
+    print(f"Synced / Updated:         {synced_count}")
     print(f"Missing Security IDs:     {len(scan_missing_id)}")
     print(f"Errors Encountered:       {error_count}")
     print(f"Total Execution Time:     {elapsed:.1f}s ({elapsed/60.0:.2f} mins)")

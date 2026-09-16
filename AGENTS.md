@@ -29,6 +29,7 @@ nifty_options_aws_deployment/
 ├── optimize_per_strategy.py         # Strategy-specific parameter grid search optimizer
 ├── prefetch_options.py              # Targeted option contract pre-fetcher & cache stitcher
 ├── fetch_historical_equity.py       # Institutional 1-min historical data ingestion engine for 2,289 NSE stocks
+├── send_daily_digest.py             # Automated daily Telegram/Slack PnL & risk digest CLI tool
 ├── renew_tokens.py                  # Automated Dhan API JWT token refresher
 ├── is_market_open.py                # NSE holiday calendar & market hours validator
 │
@@ -117,24 +118,38 @@ nifty_options_aws_deployment/
 ..\venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
+### G. Dispatch Daily Telegram / Slack PnL Digest
+```bash
+# Preview digest in console without sending webhook
+..\venv\Scripts\python.exe send_daily_digest.py --preview
+
+# Dispatch live digest to configured Telegram & Slack channels
+..\venv\Scripts\python.exe send_daily_digest.py
+```
+
 ---
 
 ## 4. Coding Conventions & Best Practices
 
 1. **Virtual Environment Execution:** Always run commands using `..\venv\Scripts\python.exe` on Windows. Never rely on Docker.
-2. **Strategy Registration Pattern:** Every strategy class must subclass `BaseStrategy` from `strategies.base` and use the `@register_strategy` decorator from `strategies.registry`.
+2. **Strategy Registration Pattern:** Every strategy class must subclass `BaseStrategy` from `strategies.base` and use the `@register_strategy` decorator from `strategies.registry`. Dynamic strategy loops must scan across `range(1, 24)` (covering strategies 1-23 + BTST).
 3. **Dynamic Overrides:** Respect `instruments.json` `strategy_overrides` and dynamic parameter reloading; never hardcode magic numbers.
 4. **Thread-Safe Rate Limiting:** All Dhan API requests must route through `RateLimiter` in `trading_bot/network.py` or `ThreadSafeRateLimiter` in standalone scripts.
 5. **Zero Look-Ahead Bias:** Indicator calculations in backtests must use completed candles (`shift(1)`), executing at candle open $i+1$.
+6. **Hybrid Crash-Proof Breakeven:** For point-based option selling/buying strategies, use `"local_exit_monitoring": true` combined with `"broker_safety_sl": true`. Entry orders are submitted as native Dhan Super Orders with hard SL (`opt_sl`) resting directly on the exchange. Upon local breakeven trigger, the bot calls `modify_super_order_sl` (`PUT /super/orders/{orderId}`) to slide the exchange-resting `STOP_LOSS_LEG` directly to the trade entry price, ensuring 100% crash immunity.
+7. **Graceful Margin Downsizing Fallback:** Live order routing in `InstrumentBot` routes orders through `place_order_with_margin_fallback`. If Dhan RMS returns a margin shortfall (`RS-9005` or text matching `"margin"/"insufficient"`), the bot automatically attempts `num_lots_high_conviction` -> `num_lots_sell` -> `1 lot minimum` before failing, preventing missed setups during margin spikes.
+8. **Dynamic Target Scaling:** Support `points_target_high_conviction` in both backtest engine and live bot for setups with multi-timeframe trend alignment (e.g. 15m Supertrend + 5m breakout), allowing extended profit capture on high-conviction trades.
 
 ---
 
 ## 5. Known Gotchas & Historical Learnings
 
 * **Dhan Token Expiration:** JWT tokens expire every 24 hours. Check token validity or run `renew_tokens.py` before diagnosing API errors.
-* **Super Order Mechanics:** In live execution, SL, TP, and Trailing jumps are submitted at order time to Dhan as Super Orders. Dhan manages the trailing automatically from the fill price without requiring a local activation trigger.
+* **Super Order Mechanics & Modifications:** In live execution, SL, TP, and Trailing jumps are submitted at order time to Dhan as Super Orders. When modifying an existing Super Order SL via `modify_super_order_sl`, the payload must target `legName: "STOP_LOSS_LEG"` with `stopLossPrice`. **Crucial:** Dhan rejects the modification if `order_type` is included in the modify payload.
+* **Dynamic Breakeven Threshold Semantics:** In `POINTS` exit mode, if `points_be <= 1.0`, it acts as a multiplier of initial SL distance (`Initial_SL_Points * points_be`). If `points_be > 1.0`, it specifies the **absolute points in favor** required to trigger breakeven (e.g., 25.0 pts for NIFTY, 45.0 pts for BANKNIFTY, 40.0 pts for SENSEX).
 * **Expired Options Resolution:** Historical expired option contracts return empty on `/v2/charts/intraday`. The backtest engine routes expired contracts (`expiry_dt.date() < datetime.now().date()`) directly to continuous price-continuity stitching (`/v2/charts/rollingoption`).
 * **Weekend/Holiday Data Cutoff:** When syncing historical data on weekends or holidays, the target cutoff must be the last completed NSE trading session (e.g. Friday 15:30) to prevent making redundant queries for non-trading days.
+* **Automated Daily Digest Schedule:** `ThreadedBotManager` runs an automated background scheduler that triggers `generate_daily_digest()` and `send_daily_digest()` at 15:35 IST daily and automatically on bot shutdown.
 
 ---
 

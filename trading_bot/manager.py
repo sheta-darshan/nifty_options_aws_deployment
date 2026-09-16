@@ -1,6 +1,8 @@
+import os
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
+import pandas as pd
 
 from trading_bot.config import Config
 from trading_bot.api_wrapper import DhanAPIWrapper
@@ -75,6 +77,7 @@ class ThreadedBotManager:
         # Monitor Loop
         last_instr_reload = time.time()
         sq_off_triggered = False
+        digest_sent = False
         try:
             while True:
                 now = time.time()
@@ -90,9 +93,24 @@ class ThreadedBotManager:
                         try:
                             self.logger.warning(f"[MANAGER] [SQ_OFF] Closing all positions for account '{acc_name}'...")
                             acc_api.close_all_intraday_positions()
+                        except RuntimeError as e:
+                            self.logger.critical(f"[MANAGER] [SQ_OFF] CRITICAL circuit-breaker failure during square-off for '{acc_name}': {e}")
+                            if self.alert_manager:
+                                self.alert_manager.send_alert(
+                                    f"🚨 *Critical Square-off Failure for {acc_name}*\n"
+                                    f"Circuit breaker tripped during EOD square-off: {e}\n"
+                                    f"Manual intervention required to verify open positions immediately.",
+                                    header="EOD Square-Off Critical Failure"
+                                )
                         except Exception as e:
                             self.logger.error(f"[MANAGER] [SQ_OFF] Failed to square off positions for '{acc_name}': {e}")
                 
+                # 3:35 PM Daily Telegram PnL & Risk Digest trigger
+                if not digest_sent and current_time >= dt_time(15, 35):
+                    self.logger.info("[MANAGER] 3:35 PM reached. Triggering Daily PnL & Risk Digest...")
+                    self.send_daily_digest()
+                    digest_sent = True
+
                 # 1. Periodically reload instruments (every 5 minutes)
                 if now - last_instr_reload > 300:
                     reload_ok = self.config.reload_instruments()
@@ -126,6 +144,10 @@ class ThreadedBotManager:
                 current_time = datetime.now(self.config.TIMEZONE).time()
                 if not self.bots and current_time > self.config.SQ_OFF_TIME:
                     self.logger.info("All bots have stopped and market is closed. Exiting manager.")
+                    if not digest_sent:
+                        self.logger.info("[MANAGER] Sending EOD Daily PnL & Risk Digest before shutdown...")
+                        self.send_daily_digest()
+                        digest_sent = True
                     self.position_manager.stop()
                     self.position_manager.join(timeout=3)
                     if self.alert_manager:
@@ -142,6 +164,12 @@ class ThreadedBotManager:
                 bot.join()
             self.position_manager.join(timeout=3)
             
+            if not digest_sent:
+                try:
+                    self.send_daily_digest()
+                except Exception as e:
+                    self.logger.error(f"[MANAGER] Error sending digest on shutdown: {e}")
+
             if self.alert_manager:
                 self.alert_manager.send_alert(f"Manual shutdown triggered by user. All threads joined successfully.", header="Bot Stopped")
 
@@ -180,11 +208,18 @@ class ThreadedBotManager:
                     
                     if api:
                         try:
-                            actual_order_resp = api.dhan.get_order_by_id(oid)
-                            if actual_order_resp.get('status') == 'success':
+                            actual_order_resp = api._make_request(api.dhan.get_order_by_id, order_id=oid)
+                            if actual_order_resp and actual_order_resp.get('status') == 'success':
                                 order_data = actual_order_resp.get('data', [])
-                                if order_data and isinstance(order_data, list):
-                                    real_status = str(order_data[0].get('orderStatus', '')).upper()
+                                if isinstance(order_data, list) and order_data:
+                                    target_data = order_data[0]
+                                elif isinstance(order_data, dict):
+                                    target_data = order_data
+                                else:
+                                    target_data = {}
+                                
+                                if target_data:
+                                    real_status = str(target_data.get('orderStatus', '')).upper()
                                     if real_status in ['TRADED', 'CANCELLED', 'REJECTED']:
                                         self.logger.info(f"Order {oid} already {real_status} on broker. Updating local state.")
                                         self.state.update_order_status(oid, real_status)
@@ -238,3 +273,153 @@ class ThreadedBotManager:
                 bot.start()
                 self.bots.append(bot)
                 self.logger.info(f"[MONITOR] Started New Bot: {name} [Offset: {offset:.1f}s]")
+
+    def generate_daily_digest(self) -> str:
+        """Generates a comprehensive Daily PnL, Strategy, and Risk Digest."""
+        now_dt = datetime.now(self.config.TIMEZONE)
+        today_str = now_dt.strftime("%Y-%m-%d")
+        time_str = now_dt.strftime("%H:%M:%S")
+
+        lines = [
+            f"📅 *Date:* `{today_str}` | ⏰ *Time:* `{time_str}`",
+            "",
+            "━━━━━━━━━━━━━━━━━━━━",
+            "💰 *ACCOUNT-WISE REALIZED PnL*"
+        ]
+
+        total_realized_pnl = 0.0
+        total_unrealized_pnl = 0.0
+        total_open_positions = 0
+
+        accounts = self.order_manager.get_accounts() if self.order_manager else []
+        if not accounts:
+            lines.append("• _No active trading accounts connected._")
+        else:
+            for acc in accounts:
+                acc_name = acc.get('name', 'Unknown')
+                acc_api = acc.get('api')
+                if not acc_api:
+                    continue
+
+                realized_pnl = 0.0
+                unrealized_pnl = 0.0
+                avail_margin = 0.0
+                util_margin = 0.0
+                open_pos_count = 0
+
+                try:
+                    positions = acc_api.get_positions() or []
+                    for pos in positions:
+                        rp = float(pos.get('realizedProfit', 0.0) or 0.0)
+                        up = float(pos.get('unrealizedProfit', 0.0) or 0.0)
+                        realized_pnl += rp
+                        unrealized_pnl += up
+                        if abs(float(pos.get('netQty', 0.0) or 0.0)) > 0:
+                            open_pos_count += 1
+                except Exception as e:
+                    self.logger.error(f"[DIGEST] Error fetching positions for {acc_name}: {e}")
+
+                try:
+                    funds_resp = acc_api._make_request(acc_api.dhan.get_fund_limits)
+                    if funds_resp and isinstance(funds_resp.get('data'), dict):
+                        fdata = funds_resp['data']
+                        avail_margin = float(fdata.get('availMargin', 0.0) or fdata.get('cashWithdrawable', 0.0) or 0.0)
+                        util_margin = float(fdata.get('utilisedMargin', 0.0) or 0.0)
+                except Exception as e:
+                    self.logger.error(f"[DIGEST] Error fetching funds for {acc_name}: {e}")
+
+                total_realized_pnl += realized_pnl
+                total_unrealized_pnl += unrealized_pnl
+                total_open_positions += open_pos_count
+
+                pnl_icon = "🟢" if realized_pnl >= 0 else "🔴"
+                lines.append(
+                    f"• *{acc_name}*: {pnl_icon} `₹{realized_pnl:+,.2f}` | Open Pos: `{open_pos_count}`\n"
+                    f"  └ *Avail Margin:* `₹{avail_margin:,.2f}` | *Utilized:* `₹{util_margin:,.2f}`"
+                )
+
+            total_icon = "🟢" if total_realized_pnl >= 0 else "🔴"
+            lines.append(f"\n*Total Realized PnL:* {total_icon} *`₹{total_realized_pnl:+,.2f}`*")
+            if total_unrealized_pnl != 0:
+                lines.append(f"*Total Unrealized PnL:* `₹{total_unrealized_pnl:+,.2f}`")
+
+        # Today's Executed Trades Breakdown
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append("📈 *TODAY'S TRADING ACTIVITY*")
+        
+        trade_log_file = getattr(self.config, 'TRADE_LOG_CSV', None)
+        today_trades_count = 0
+        instrument_activity = {}
+
+        if trade_log_file and os.path.exists(trade_log_file):
+            try:
+                df_trades = pd.read_csv(trade_log_file)
+                if 'timestamp' in df_trades.columns:
+                    df_trades['date'] = df_trades['timestamp'].astype(str).str.slice(0, 10)
+                    today_df = df_trades[df_trades['date'] == today_str]
+                    today_trades_count = len(today_df)
+
+                    for _, row in today_df.iterrows():
+                        inst = str(row.get('instrument', 'Unknown'))
+                        instrument_activity[inst] = instrument_activity.get(inst, 0) + 1
+
+                    lines.append(f"• *Total Events Logged:* `{today_trades_count}`")
+                    for inst, cnt in instrument_activity.items():
+                        lines.append(f"• *{inst}*: `{cnt}` trade event(s)")
+            except Exception as e:
+                self.logger.error(f"[DIGEST] Error parsing trade log CSV: {e}")
+                lines.append(f"• _Error reading trade log: {e}_")
+        else:
+            lines.append("• _No trade events recorded in CSV today._")
+
+        # SL and Risk Status
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append("🛡️ *RISK & CIRCUIT CONTROLS*")
+
+        aggregated_sls = {}
+        for bot in self.bots:
+            for strat, accs in getattr(bot, 'daily_sl_counts', {}).items():
+                for acc, count in accs.items():
+                    key = f"{strat} ({acc})"
+                    aggregated_sls[key] = aggregated_sls.get(key, 0) + count
+
+        if aggregated_sls:
+            for strat_acc, count in aggregated_sls.items():
+                lines.append(f"• *{strat_acc}*: `{count}` SL hit(s)")
+        else:
+            lines.append("• *Daily SL Hits:* `0` (Zero stop-loss breaches)")
+
+        # Carry-forward positions
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append("📦 *CARRY-FORWARD POSITIONS*")
+        with self.state.lock:
+            open_positions = {k: v for k, v in self.state.positions.items() if abs(float(v.get('qty', 0))) > 0}
+        
+        if open_positions:
+            for k, pos in open_positions.items():
+                sym = pos.get('symbol', k)
+                action = pos.get('action', 'N/A')
+                qty = pos.get('qty', 0)
+                entry = pos.get('Entry_Price', 0.0)
+                strat = pos.get('strategy', 'Unknown')
+                lines.append(f"• `{sym}` ({action} {qty} qty @ ₹{entry:.2f}) | Strat: `{strat}`")
+        else:
+            lines.append("• _None. 100% Intraday Flat / Zero Overnight Exposure._")
+
+        return "\n".join(lines)
+
+    def send_daily_digest(self):
+        """Builds and sends the Daily PnL & Risk Digest via AlertManager."""
+        try:
+            digest_msg = self.generate_daily_digest()
+            if self.alert_manager:
+                self.alert_manager.send_alert(digest_msg, header="Daily PnL & Risk Digest")
+                self.logger.info("[MANAGER] Daily PnL & Risk Digest successfully sent via AlertManager.")
+            else:
+                self.logger.info(f"[MANAGER] AlertManager not configured. Digest:\n{digest_msg}")
+        except Exception as e:
+            self.logger.error(f"[MANAGER] Failed to generate/send daily digest: {e}")
+

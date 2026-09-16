@@ -30,6 +30,7 @@ nifty_options_aws_deployment/
 ├── run_strategy20_backtest.py   # Dedicated strategy runner for Option Writing
 ├── prefetch_options.py          # Targeted option contract pre-fetcher & stitcher
 ├── optimize.py                  # Joint multi-stage walk-forward parameter optimizer
+├── send_daily_digest.py         # Automated daily Telegram/Slack PnL & risk digest CLI tool
 ├── renew_tokens.py              # Automated Dhan API token refresher
 ├── fetch_historical_equity.py   # Institutional incremental historical 1-min data ingestion engine (Dhan)
 ├── EQUITY_L.csv                 # Master NSE listed equity stock universe
@@ -37,7 +38,7 @@ nifty_options_aws_deployment/
 ├── strategies/                  # Modular Strategy Registry Directory
 │   ├── base.py                  # Abstract Base class BaseStrategy
 │   ├── registry.py              # Dynamic strategy registration decorator @register_strategy
-│   ├── config.py                # Configuration loader & defaults (range(1, 23))
+│   ├── config.py                # Configuration loader & defaults (range(1, 24))
 │   ├── strategy_1.py ... 22.py  # Standalone technical & quant strategy implementations
 │   └── strategy_btst.py         # Buy Today Sell Tomorrow afternoon breakout strategy
 │
@@ -71,8 +72,9 @@ nifty_options_aws_deployment/
 - **`exit_mode`**:
   - `"ATR"`: Dynamic ATR-based Stop Loss & Target premium orders on exchange.
   - `"SWING"`: Spot structural swing highs/lows monitored locally in Python.
-  - `"SWING_CONTRACT"`: Structural swing stops calculated directly on contract premium.
-  - `"POINTS"`: Fixed point Stop Loss (`points_sl_buy`), Target (`points_target_buy`), Trailing (`points_trail_buy`), and Breakeven (`points_be_buy`).
+  - `"POINTS"`: Fixed point Stop Loss (`points_sl_buy`/`_sell`), Target (`points_target_buy`/`_sell`), Dynamic Extended Target (`points_target_high_conviction`), Trailing (`points_trail_buy`/`_sell`), and Breakeven (`points_be_buy`/`_sell` - ratio if <= 1.0, absolute points if > 1.0).
+- **`local_exit_monitoring`**: `true` monitors target/trailing/BE in Python thread; `false` places exchange bracket order.
+- **`broker_safety_sl`**: `true` enables **Hybrid Crash-Proof Mode**: submits native Dhan Super Order with Hard SL on exchange at entry, then uses `modify_super_order_sl` (`PUT /super/orders/{orderId}`) to shift the exchange-resting `STOP_LOSS_LEG` to entry price on breakeven.
 - **`block_expiry_day_trades`**: `1` blocks option buying on expiry day (option selling runs normally).
 - **`allowed_actions`**: Restricts direction (`["BUY"]` or `["SELL"]`).
 - **`strategy_overrides`**: Nested parameter overrides for specific strategy IDs.
@@ -84,7 +86,7 @@ nifty_options_aws_deployment/
 
 ## 4. Strategy Catalog & Registry Index
 
-All strategies inherit from `BaseStrategy` and register via `@register_strategy`. Dynamic strategy loops use **`range(1, 23)`** to include all 22 numbered strategies + `Strategy_BTST`.
+All strategies inherit from `BaseStrategy` and register via `@register_strategy`. Dynamic strategy loops use **`range(1, 24)`** to include all 23 numbered strategies + `Strategy_BTST`.
 
 | ID | Name | Core Concept | Timeframe | Execution Mode | Key Parameters / Exit Rules |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -109,7 +111,8 @@ All strategies inherit from `BaseStrategy` and register via `@register_strategy`
 | **Strategy_19** | Strategy19 | Institutional Quant ML | 1-Min | OPTION/STOCK | XGBoost ML Classifier ($P_{\text{trend}} \ge 42\%$) |
 | **Strategy_20** | Strategy_20 | 15-Min Supertrend Option Writer | 15-Min / 1-Min | OPTION (SELL) | 1-Trade/Day; 15m Supertrend (10, 2.0); Target 45 pts, SL 20 pts, Breakeven 15 pts |
 | **Strategy_21** | Strategy21 | NIFTY Institutional Multi-Pivot Reversal | 5-Min | OPTION (BUY) | Dhan MTF Weekly CPR (#16) + Daily CPR (#15) + Cam L3/H3 + PDH/PDL; Rejection Wick $\ge 50\%$, 2.2R, Max 2 Trades/Day |
-| **Strategy_22** | Strategy22 | Triple Momentum Enhanced (TM-Pro) | 5-Min | OPTION (SELL) | 5m Triple EMA (8, 18, 30) + Supertrend 10/2.5 + ADX + Midday Chop Filter (13:00-13:50). Multi-Index Calibrated: NIFTY, BANKNIFTY, SENSEX (~80% WR) |
+| **Strategy_22** | Strategy22 | Triple Momentum Enhanced (TM-Pro) | 5-Min / 15-Min | OPTION (SELL) | 5m Triple EMA (8, 18, 30) + Supertrend 10/2.5 + ADX + Midday Chop Filter (13:00-13:50) + 15m Macro Trend Dynamic Conviction Sizing (`enable_dynamic_conviction`: 1 base / 2 high lots) + Dynamic Targets (`points_target_high_conviction`). Multi-Index Calibrated: NIFTY (SL 74, TP 25/45, BE 25), BANKNIFTY (SL 100, TP 45/75, BE 45), SENSEX (SL 140, TP 50/90, BE 40) with 81-82% WR. |
+| **Strategy_23** | Strategy23 | Stealth Absorption Multi-Day Swing (S-AMS) | 1-Min / Multi-Day | STOCK (CNC / Delivery) | 10m Opening Box (09:15-09:25), RVOL >= 1.5x, Range <= 0.8%, Breakout before 11:00 AM. Stop at Box Low; Breakeven at +2.5%; Trailing Stop 2.0% from peak after +4.0%; Max Hold 10 Days. +₹12.2L net profit (1.92 PF) on 3-year data |
 | **Strategy_BTST**| StrategyBTST| Buy Today Sell Tomorrow | Daily / 5-Min | OPTION/STOCK | 14:50 PM afternoon breakout for overnight gap |
 
 
@@ -121,6 +124,9 @@ All strategies inherit from `BaseStrategy` and register via `@register_strategy`
 2. **Index + 1 Execution Rule:** Signals detected at index `i` (candle close) trigger trade execution at index `i + 1` (candle open).
 3. **Dynamic Exit Monitoring:** When `USE_DYNAMIC_EXITS = "True"` in `.env`, triggering an exit signal immediately cancels pending exchange SL trigger orders and closes positions at market.
 4. **Expiry Rollover:** Option buying automatically shifts to the next weekly/monthly contract on the expiry date to avoid time decay collapse. Option selling allows normal execution to capture time decay.
+5. **Hybrid Crash-Proof Breakeven:** Native Dhan Super Orders are placed at entry with Hard SL on exchange. When local monitoring triggers breakeven, `modify_super_order_sl` shifts the exchange-resting `STOP_LOSS_LEG` to the entry price for 100% EC2 crash immunity.
+6. **Graceful Margin Downsizing Fallback:** Live order dispatcher retries orders down to 1 lot if Dhan RMS rejects due to margin shortfall (`RS-9005` or `"Margin Insufficient"`).
+7. **Automated Daily Digest:** Internal scheduler runs at 15:35 IST daily and upon bot shutdown to generate and dispatch Telegram/Slack PnL & Risk summaries (`send_daily_digest.py`).
 
 ---
 
@@ -131,7 +137,7 @@ When working in this codebase, AI agents MUST follow these instructions:
 1. **Consult `SYSTEM_BLUEPRINT.md` First:** Always check this file before doing broad grep or multi-file reading.
 2. **Plan Before Code Edits:** Write an explicit technical implementation plan detailing file changes before modifying code.
 3. **Use Range-Based File Reading:** Use `StartLine` and `EndLine` parameters in `view_file` to read only relevant code sections. Never read 3,000-line files in their entirety.
-4. **Preserve Codebase Integrity:** Maintain existing strategy registration decorators (`@register_strategy`), range loops (`range(1, 21)`), and dynamic override pathways.
+4. **Preserve Codebase Integrity:** Maintain existing strategy registration decorators (`@register_strategy`), range loops (`range(1, 24)`), and dynamic override pathways.
 5. **Verify Changes:** Run unit tests (`python -m unittest discover -s tests`) or fast backtests after modifying code.
 
 ---

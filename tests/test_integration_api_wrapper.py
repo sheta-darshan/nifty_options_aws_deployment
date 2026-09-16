@@ -204,6 +204,46 @@ class TestAPIWrapperIntegration(unittest.TestCase):
                 result = self.wrapper.cancel_order("ORD999")
         self.assertFalse(result)
 
+    def test_close_all_intraday_positions_resilient_to_midloop_runtime_error(self):
+        """
+        When place_order raises RuntimeError on position 2 of 3, the loop must
+        still attempt position 3 and re-raise RuntimeError at the end.
+        """
+        positions_mock = [
+            {"securityId": "101", "netQty": 50, "exchangeSegment": "NSE_FNO", "productType": "MARKET"},
+            {"securityId": "102", "netQty": -25, "exchangeSegment": "NSE_FNO", "productType": "MARKET"},
+            {"securityId": "103", "netQty": 75, "exchangeSegment": "NSE_FNO", "productType": "MARKET"}
+        ]
+        
+        attempted_sec_ids = []
+        def fake_place_order(security_id, transaction_type, quantity, **kwargs):
+            attempted_sec_ids.append(security_id)
+            if security_id == "102":
+                raise RuntimeError("Circuit breaker tripped on position 102")
+            return {"orderId": f"ORD_{security_id}", "status": "success"}
+
+        with patch.object(self.wrapper, "get_positions", return_value=positions_mock):
+            with patch.object(self.wrapper, "place_order", side_effect=fake_place_order):
+                with self.assertRaises(RuntimeError) as ctx:
+                    self.wrapper.close_all_intraday_positions()
+
+        # All 3 positions must have been attempted
+        self.assertEqual(attempted_sec_ids, ["101", "102", "103"])
+        self.assertIn("Circuit breaker tripped on position 102", str(ctx.exception))
+
+    def test_consecutive_failures_reset_on_successful_request(self):
+        """_consecutive_failures must reset to 0 after a successful _make_request call."""
+        DhanAPIWrapper._consecutive_failures = 7
+        mock_api = MagicMock(return_value={"status": "success", "data": {"ok": True}})
+        
+        with patch.object(self.wrapper.rate_limiter, "wait_if_needed"):
+            with patch("trading_bot.api_wrapper.NetworkContext"):
+                result = self.wrapper._make_request(mock_api)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(DhanAPIWrapper._consecutive_failures, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
