@@ -74,6 +74,10 @@ class Config:
         self.ENABLE_STRATEGY_18 = False
         self.ENABLE_STRATEGY_19 = False
         self.ENABLE_STRATEGY_20 = False
+        self.ENABLE_STRATEGY_21 = False
+        self.ENABLE_STRATEGY_22 = False
+        self.ENABLE_STRATEGY_23 = False
+        self.ENABLE_STRATEGY_24 = False
         
         # Strategy 1
         self.SUPERTREND_LEN = 12
@@ -120,8 +124,8 @@ class Config:
         
         # Time Settings
         self.RUN_START = dt_time(9, 20)
-        self.RUN_END = dt_time(15, 15)
-        self.SQ_OFF_TIME = dt_time(15, 16)
+        self.RUN_END = dt_time(15, 0)
+        self.SQ_OFF_TIME = dt_time(15, 5)
         self.TIMEZONE = pytz.timezone("Asia/Kolkata")
         self.POLL_INTERVAL_SECS = 30
         
@@ -140,21 +144,27 @@ class Config:
         self.PROXY_URL = os.getenv("DHAN_PROXY_URL", "").strip()
 
         # Parse Strategy Enable Flags from .env
-        for i in range(1, 24):
+        for i in range(1, 25):
             env_val = os.getenv(f"ENABLE_STRATEGY_{i}", None)
             if env_val is not None:
                 setattr(self, f"ENABLE_STRATEGY_{i}", env_val.strip().upper() == "TRUE")
 
         self.active_strategy = "Strategy_3"
-        for i in range(1, 24):
+        for i in range(1, 25):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 self.active_strategy = f"Strategy_{i}"
                 break
         self.apply_strategy_defaults(self.active_strategy)
         self.apply_strategy_instrument_overrides(self.active_strategy)
         # Ensure RUN_START is 09:15 if any active or enabled strategy requires early 09:15 AM entry
-        early_strategies = {"Strategy_14", "Strategy_20"}
+        early_strategies = {"Strategy_14", "Strategy_20", "Strategy_24"}
         enabled_any_early = any(getattr(self, f"ENABLE_STRATEGY_{s.split('_')[-1]}", False) for s in early_strategies)
+        # Also check if any enabled instrument in instruments.json runs an early strategy
+        if not enabled_any_early and hasattr(self, 'INSTRUMENTS') and isinstance(self.INSTRUMENTS, dict):
+            for item in self.INSTRUMENTS.values():
+                if isinstance(item, dict) and item.get('enabled', 0) and item.get('strategy') in early_strategies:
+                    enabled_any_early = True
+                    break
         if self.active_strategy in early_strategies or enabled_any_early:
             self.RUN_START = dt_time(9, 15)
 

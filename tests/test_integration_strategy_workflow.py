@@ -19,16 +19,16 @@ from strategies.base import BaseStrategy
 class TestStrategyRegistry(unittest.TestCase):
     """Verify the strategy registry discovers all expected strategies."""
 
-    def test_all_23_plus_btst_are_registered(self):
-        """Strategies 1..23 and BTST must all be registered."""
-        expected = {f"Strategy_{i}" for i in range(1, 24)} | {"Strategy_BTST"}
+    def test_all_24_plus_btst_are_registered(self):
+        """Strategies 1..24 and BTST must all be registered."""
+        expected = {f"Strategy_{i}" for i in range(1, 25)} | {"Strategy_BTST"}
         registered = set(STRATEGY_REGISTRY.keys())
         missing = expected - registered
         self.assertEqual(missing, set(), f"Missing strategies: {missing}")
 
     def test_registry_total_count(self):
-        """Total number of registered strategies should be exactly 24."""
-        self.assertEqual(len(STRATEGY_REGISTRY), 24)
+        """Total number of registered strategies should be exactly 25."""
+        self.assertEqual(len(STRATEGY_REGISTRY), 25)
 
 
     def test_get_strategy_returns_instance(self):

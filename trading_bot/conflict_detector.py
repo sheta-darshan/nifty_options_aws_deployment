@@ -57,7 +57,7 @@ class ConflictDetector:
         inst_config = self.bot.config.INSTRUMENTS.get(self.bot.name, {})
 
         from strategies.registry import STRATEGY_REGISTRY
-        active_strategies = list(STRATEGY_REGISTRY.keys()) if STRATEGY_REGISTRY else [f"Strategy_{i}" for i in range(1, 24)]
+        active_strategies = list(STRATEGY_REGISTRY.keys()) if STRATEGY_REGISTRY else [f"Strategy_{i}" for i in range(1, 25)]
 
         for acc in accounts:
             acc_name = acc["name"]
@@ -96,7 +96,7 @@ class ConflictDetector:
         global_max = inst_config.get("max_active", 1)
 
         from strategies.registry import STRATEGY_REGISTRY
-        active_strategies = list(STRATEGY_REGISTRY.keys()) if STRATEGY_REGISTRY else [f"Strategy_{i}" for i in range(1, 24)]
+        active_strategies = list(STRATEGY_REGISTRY.keys()) if STRATEGY_REGISTRY else [f"Strategy_{i}" for i in range(1, 25)]
         for strat in active_strategies:
             try:
                 count = self.bot._count_my_active_positions(

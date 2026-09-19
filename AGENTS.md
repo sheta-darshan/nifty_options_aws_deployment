@@ -52,12 +52,14 @@ nifty_options_aws_deployment/
 │   ├── strategy_btst.py             # Buy Today Sell Tomorrow afternoon breakout strategy
 │   └── utils.py                     # Shared math utilities (EMA, Supertrend, Heikin-Ashi, ATR)
 │
-├── stock_selection/                 # Machine Learning Stock Selection Subsystem
-│   ├── preprocess.py                # Feature engineering from 1-min spot candles (28 alpha features)
-│   ├── train.py                     # XGBoost & Random Forest walk-forward classifier training
-│   ├── select_stocks.py             # Single-target stock selection ranking CLI
-│   ├── select_joint.py              # Joint Volatility + Direction selection with automated `instruments.json` rotation
-│   └── README_STOCK_SELECTION.md    # Stock selection pipeline user manual
+├── stock_selection/                 # Machine Learning & Quantitative Stock Selection Subsystem
+│   ├── feature_matrix_v2.py         # Advanced Feature Matrix 2.0 (42 technical, volume, auction & RS alphas)
+│   ├── train_joint_v2.py            # Dual-Head XGBoost probability training with isotonic calibration
+│   ├── select_joint.py              # True Dual-Head ML momentum expansion selector with safe JSON rotation
+│   ├── select_prebreakout.py        # Institutional Pre-Breakout / Pre-Breakdown Coiled Selector (Bidirectional)
+│   ├── fno_registry.json            # Official Dhan-verified NSE F&O 210 stock registry (lot sizes & strike steps)
+│   ├── models/                      # Serialized ML artifacts (`global_dual_head_joint_model.pkl`)
+│   └── README_STOCK_SELECTION.md    # Comprehensive stock selection pipeline user manual
 │
 ├── models/                          # Serialized ML model artifacts (e.g. `nifty_quant_xgb.pkl`)
 ├── Guidelines/                      # Canonical Documentation Hub
@@ -69,6 +71,7 @@ nifty_options_aws_deployment/
 │   └── AWS_SETUP_GUIDE.md           # Production deployment & EC2 infrastructure setup
 │
 ├── research_and_development/        # Experimental backtests, audit scripts, and R&D verification tools
+│   └── compare_joint_vs_prebreakout.py # Head-to-head 1-year comparative backtester & trade logger
 └── tests/                           # Unit & integration test suites (API, Concurrency, Strategy Parity)
 ```
 
@@ -102,10 +105,30 @@ nifty_options_aws_deployment/
 ..\venv\Scripts\python.exe fetch_historical_equity.py --years 5
 ```
 
-### D. Run Daily ML Stock Selection
+### D. Train & Run Dual-Head ML Stock Selection
 ```bash
-# Select top 3 momentum stocks for tomorrow and auto-rotate in instruments.json
-..\venv\Scripts\python.exe stock_selection/select_joint.py --rotate --top-k 3
+# Train Dual-Head XGBoost with Feature Matrix 2.0 (110,910 samples):
+..\venv\Scripts\python.exe stock_selection/train_joint_v2.py
+
+# Select top 2 momentum expansion stocks and auto-rotate in instruments.json:
+..\venv\Scripts\python.exe stock_selection/select_joint.py --direction both --top-k 2 --rotate --execution-mode hybrid
+```
+
+### D2. Run Institutional Pre-Breakout Selection & Daily Symbiotic Routine
+```bash
+# Daily EOD 15:35 IST Automation: Run both engines symbiotically (100% Monthly Win Rate Ensemble):
+# Step 1: Base Contractions (Minervini VCP + TTM Squeeze)
+..\venv\Scripts\python.exe stock_selection/select_prebreakout.py --direction both --top-k 2 --rotate --execution-mode hybrid
+
+# Step 2: Momentum Velocity Expansions (Dual-Head ML)
+..\venv\Scripts\python.exe stock_selection/select_joint.py --direction both --top-k 2 --rotate --execution-mode hybrid
+
+# Run 1-Year Head-to-Head Comparative Backtest:
+..\venv\Scripts\python.exe research_and_development/compare_joint_vs_prebreakout.py
+```
+
+# 100% F&O Stock Options (Filtered to 199 F&O names with exchange lot sizes):
+..\venv\Scripts\python.exe stock_selection/select_prebreakout.py --direction both --top-k 5 --rotate --fno-only --execution-mode option
 ```
 
 ### E. Launch Production Live Trading Bot
@@ -132,7 +155,7 @@ nifty_options_aws_deployment/
 ## 4. Coding Conventions & Best Practices
 
 1. **Virtual Environment Execution:** Always run commands using `..\venv\Scripts\python.exe` on Windows. Never rely on Docker.
-2. **Strategy Registration Pattern:** Every strategy class must subclass `BaseStrategy` from `strategies.base` and use the `@register_strategy` decorator from `strategies.registry`. Dynamic strategy loops must scan across `range(1, 24)` (covering strategies 1-23 + BTST).
+2. **Strategy Registration Pattern:** Every strategy class must subclass `BaseStrategy` from `strategies.base` and use the `@register_strategy` decorator from `strategies.registry`. Dynamic strategy loops must scan across `range(1, 25)` (covering strategies 1-24 + BTST).
 3. **Dynamic Overrides:** Respect `instruments.json` `strategy_overrides` and dynamic parameter reloading; never hardcode magic numbers.
 4. **Thread-Safe Rate Limiting:** All Dhan API requests must route through `RateLimiter` in `trading_bot/network.py` or `ThreadSafeRateLimiter` in standalone scripts.
 5. **Zero Look-Ahead Bias:** Indicator calculations in backtests must use completed candles (`shift(1)`), executing at candle open $i+1$.

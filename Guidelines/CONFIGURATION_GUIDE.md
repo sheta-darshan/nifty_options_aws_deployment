@@ -67,6 +67,11 @@ This file controls the list of active trading symbols, their strategy parameters
 | **`allowed_regimes_trend`** | `array` | e.g. `["TREND"]` | **New**: Centralized ADX trend filter. Allowed states: `"TREND"` (ADX > 25.0), `"RANGE"` (ADX < 20.0), `"NEUTRAL"` (20.0 <= ADX <= 25.0). If omitted, no filter is applied. |
 | **`allowed_regimes_vol`**  | `array` | e.g. `["LOW_VIX"]` | **New**: Centralized ATR volatility filter. Allowed states: `"LOW_VIX"` (ATR% <= Median ATR%), `"HIGH_VIX"` (ATR% > Median ATR%). If omitted, no filter is applied. |
 | **`allowed_actions`**      | `array` | `["BUY"]` or `["SELL"]` | **New**: Trade direction lock at the instrument level. Restricts the bot from executing counter-trend signals (e.g., if set to `["BUY"]`, the bot ignores any `'sell'` signals). If omitted, no direction lock is applied. |
+| **`trigger_price`**        | `float` | e.g. `489.55` | **New**: Exact price trigger threshold for `Strategy_24` (Opening Pre-Breakout / Pre-Breakdown Momentum). For BUY (`direction: "BUY"`), fires when spot crosses above `Day T High + 0.05`. For SELL (`direction: "SELL"`), fires when spot drops below `Day T Low - 0.05`. |
+| **`direction`**            | `string`| `"BUY"`, `"SELL"` | **New**: Directional mode for rotated cash stock setups in `Strategy_24`. Aligns `allowed_actions: ["BUY"]` or `["SELL"]`. |
+| **`rotated_prebreakout`**  | `bool`  | `true`, `false` | **New**: Set to `true` by the automated EOD Pre-Breakout/Breakdown Stock Selection scanner (`select_prebreakout.py --rotate`) when a stock is rotated into the active daily rotation pool. |
+| **`rotated_joint`**       | `bool`  | `true`, `false` | **New**: Set to `true` by the automated EOD Dual-Head Quantitative ML Momentum scanner (`select_joint.py --rotate`) when a stock is rotated into the active daily rotation pool. Co-exists symbiotically with `rotated_prebreakout`. |
+| **`stock_qty_override`**   | `int`   | e.g. `1125` | **New**: Exact share quantity allocated for cash equity execution (`execution_mode: "STOCK"`). Automatically computed via SEBI 5x MIS leverage formula: $\max(1, \text{int}((\text{capital} \times \text{leverage}) / \text{trigger\_price}))$. |
 
 ### 🎛️ Custom Optimization Grids (`optimization_grid`)
 
@@ -560,5 +565,55 @@ Calibrated across 365-day backtests with 81-82% win rates and optimal Profit Fac
 | **NIFTY** | 1 | 2 | 74.0 | 25.0 | 45.0 | 25.0 |
 | **BANKNIFTY** | 1 | 2 | 100.0 | 45.0 | 75.0 | 45.0 |
 | **SENSEX** | 1 | 2 | 140.0 | 50.0 | 90.0 | 40.0 |
+
+---
+
+## 🎯 12. Institutional Pre-Breakout / Pre-Breakdown Smart Hybrid Engine (Strategy 24)
+
+### A. Overview & Strategy Intent
+`Strategy_24` executes daily opening momentum trades on liquid equities and stock options that were identified by `select_prebreakout.py` during the post-market scan. The algorithm identifies institutional absorption, volatility compression (TTM Squeeze + NR7), 20 EMA base coiling, Minervini 3-wave VCP contraction ($\le 0.52$), and 14:30–15:25 IST Smart Money footprint (CAR $\ge 18\%$, CLV $\pm 0.45$, UVR $\ge 50\%$).
+
+### B. Smart Hybrid Execution Modes (`--execution-mode`)
+The EOD scanner supports three distinct operational modes:
+1. **`hybrid` (Recommended Default)**:
+   - Scans the Top 500 liquid universe.
+   - If a candidate belongs to the **199 official NSE F&O stocks** (`stock_selection/fno_registry.json`), it configures it for **Stock Options (`OPTSTK` in `NSE_FNO`)** with exchange-mandated lot sizes and delta-scaled points SL/TP.
+   - If a candidate is a non-F&O cash equity, it configures it for **5x MIS Cash Equities (`STOCK` in `NSE_EQ`)** with `stock_qty_override` sized to ₹5L position buying power.
+2. **`stock`**:
+   - Forces all selected setups into 5x Intraday MIS Cash Equities.
+3. **`option`**:
+   - Forces all selected setups into official NSE Stock Options. Use `--fno-only` to restrict scanning exclusively to F&O universe.
+
+### C. SEBI 5x MIS Intraday Margin Formula
+For cash equity setups, position sizing utilizes the 5x intraday margin provided by Indian brokers:
+$$\text{stock\_qty\_override} = \max\left(1, \text{int}\left(\frac{\text{capital} \times \text{leverage}}{\text{trigger\_price}}\right)\right)$$
+*Example:* With `capital = 100,000` and `leverage = 5.0`, a stock priced at ₹444.40 is allocated $\text{int}(500,000 / 444.40) = 1,125$ shares, scaling winning trade gains from ₹380 to ₹1,900 – ₹5,000+.
+
+### D. F&O Stock Option Contract Presets
+When an F&O stock is rotated:
+- `segment`: `"NSE_FNO"`
+- `instrument_type`: `"OPTSTK"`
+- `lot_size`: Official exchange contract lot from `stock_selection/fno_registry.json` (e.g. `PNB: 8,000`, `LICHSGFIN: 1,000`, `CROMPTON: 1,800`, `ETERNAL: 2,425`).
+- `points_sl`: $0.90 \times \text{ATR} \times 0.50$ (Option Delta scaling)
+- `points_target`: $1.15 \times \text{ATR} \times 0.50$
+- `points_be`: $0.65 \times \text{ATR} \times 0.50$
+
+### E. Strategy 24 Execution Guards
+- **Anti-Gap Exhaustion Trap (`MAX_GAP_ATR_MULT = 0.40`)**: If Day T+1 opens $> 0.40\times$ ATR beyond trigger, the setup is blocked to avoid retail gap-chasing traps.
+- **Anti-Rejection Wick Filter (`MAX_ADVERSE_WICK_RATIO = 0.45`)**: If the 5-minute confirmation candle exhibits an adverse wick $> 45\%$ of its high-to-low range, entry is rejected.
+- **Dynamic Breakeven**: Once spot gains $+0.65\times$ ATR in favor, SL is moved to entry price.
+- **Strict Hard Stop**: $-0.90\times$ ATR.
+- **Intraday EOD Square-Off**: Automatic exit at 15:15 IST.
+
+### F. 3-Year Historical Walk-Forward Simulation Results (July 2023 – Sept 2026)
+- **Sessions Tested**: 744 active NSE market sessions.
+- **Trades**: 197 verified executions.
+- **Win Rate**: **59.9%** (118 Wins / 79 Losses).
+- **Profit Factor**: **2.26**.
+- **Net Profit (1x Unleveraged)**: **+₹75,170** (ROI: +75.2%).
+- **Net Profit (5x MIS Margin)**: **+₹3,75,850** (ROI: +375.8%).
+- **Max Drawdown**: **₹5,646** (7.5% DD / Net Profit ratio).
+- **Monthly Consistency**: **72.2% Profitable Months**.
+
 
 

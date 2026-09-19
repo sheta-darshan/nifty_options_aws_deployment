@@ -5,7 +5,7 @@ import re
 import threading
 import pytz
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from typing import Optional, List, Dict, Tuple
 
 from trading_bot.config import Config
@@ -56,11 +56,29 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
 
     import strategies as strat
     
-    # 1. Determine all active strategies dynamically using the registry
-    active_strategies = []
-    for s in strat.STRATEGY_REGISTRY.keys():
-        if getattr(config, f"ENABLE_{s.upper()}", False):
-            active_strategies.append(s)
+    # 1. Overlay instrument-specific configuration
+    inst_cfg = {}
+    if instrument_name:
+        if hasattr(config, 'INSTRUMENTS') and config.INSTRUMENTS and instrument_name in config.INSTRUMENTS:
+            inst_cfg = config.INSTRUMENTS[instrument_name]
+        elif os.path.exists("instruments.json"):
+            try:
+                with open("instruments.json", "r") as f:
+                    all_inst = json.load(f)
+                    inst_cfg = all_inst.get(instrument_name, {})
+            except Exception:
+                pass
+
+    # 2. Determine active strategies dynamically using the registry
+    inst_strat = inst_cfg.get("strategy")
+    if inst_strat and inst_strat in strat.STRATEGY_REGISTRY:
+        # Instrument is strictly dedicated to this specific strategy (e.g. Strategy_24 for cash stocks)
+        active_strategies = [inst_strat]
+    else:
+        active_strategies = []
+        for s in strat.STRATEGY_REGISTRY.keys():
+            if getattr(config, f"ENABLE_{s.upper()}", False):
+                active_strategies.append(s)
             
     if not active_strategies:
         active_strategies = ["Strategy_3"]  # Fallback
@@ -86,28 +104,19 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
             strat_cls = strat.get_strategy_class(s_name)
             params = strat_cls().get_default_params()
             
-            # Overlay global configuration variables onto strategy defaults
+            # Overlay global configuration variables onto strategy defaults (preserve strategy-specific timing defaults)
             for k in params.keys():
-                if hasattr(config, k):
+                if k not in ["START_TIME", "CUTOFF_TIME"] and hasattr(config, k):
                     params[k] = getattr(config, k)
                     
-            # Overlay instrument-specific overrides
-            inst_cfg = {}
-            if instrument_name:
-                if hasattr(config, 'INSTRUMENTS') and config.INSTRUMENTS and instrument_name in config.INSTRUMENTS:
-                    inst_cfg = config.INSTRUMENTS[instrument_name]
-                elif os.path.exists("instruments.json"):
-                    try:
-                        with open("instruments.json", "r") as f:
-                            all_inst = json.load(f)
-                            inst_cfg = all_inst.get(instrument_name, {})
-                    except Exception:
-                        pass
-                        
             if inst_cfg:
                 for k in params.keys():
                     if k in inst_cfg:
                         params[k] = inst_cfg[k]
+                    elif k.lower() in inst_cfg:
+                        params[k] = inst_cfg[k.lower()]
+                    elif k.upper() in inst_cfg:
+                        params[k] = inst_cfg[k.upper()]
                 for base_k in ["allowed_regimes_trend", "allowed_regimes_vol", "allowed_actions"]:
                     if base_k in inst_cfg:
                         params[base_k] = inst_cfg[base_k]
@@ -120,6 +129,8 @@ def process_market_data(df: pd.DataFrame, config: Config, logger, instrument_nam
                 if isinstance(strat_overrides, dict) and strat_overrides:
                     for k, v in strat_overrides.items():
                         params[k] = v
+                        if k.upper() in params:
+                            params[k.upper()] = v
                         
             # Instantiate and generate signals
             strategy = strat.get_strategy(s_name, params)
@@ -256,7 +267,14 @@ def get_all_latest_signals(df: pd.DataFrame, logger, config: Config) -> list:
         disp_time = None
         
     # STRICT TIMEFRAME FIX
-    if isinstance(disp_time, pd.Timestamp) and disp_time.time() < config.RUN_START:
+    run_start_time = config.RUN_START
+    early_strategies = {"Strategy_14", "Strategy_20", "Strategy_24"}
+    if hasattr(config, 'INSTRUMENTS') and isinstance(config.INSTRUMENTS, dict):
+        for item in config.INSTRUMENTS.values():
+            if isinstance(item, dict) and item.get('enabled', 0) and item.get('strategy') in early_strategies:
+                run_start_time = dt_time(9, 15)
+                break
+    if isinstance(disp_time, pd.Timestamp) and disp_time.time() < run_start_time:
         return []
         
     active_signals = []
@@ -266,8 +284,14 @@ def get_all_latest_signals(df: pd.DataFrame, logger, config: Config) -> list:
             sig = completed_row.get(col, 0)
             if sig != 0 and pd.notna(sig):
                 s_name = col.split("Signal_")[-1]
-                # Double check that the strategy is actually enabled
-                if getattr(config, f"ENABLE_{s_name.upper()}", False):
+                # Double check that the strategy is actually enabled globally or assigned to an active instrument
+                is_strat_enabled = getattr(config, f"ENABLE_{s_name.upper()}", False)
+                if not is_strat_enabled and hasattr(config, 'INSTRUMENTS') and isinstance(config.INSTRUMENTS, dict):
+                    for item in config.INSTRUMENTS.values():
+                        if isinstance(item, dict) and item.get('enabled', 0) and item.get('strategy') == s_name:
+                            is_strat_enabled = True
+                            break
+                if is_strat_enabled:
                     direction = 'buy' if sig == 1 else ('sell' if sig == -1 else 'both')
                     atr = completed_row.get('ATR', 0.0)
                     active_signals.append((direction, atr, s_name))

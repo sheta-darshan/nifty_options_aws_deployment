@@ -327,8 +327,27 @@ class DhanAPIWrapper:
             raise
         except Exception as e:
             self.logger.exception(f"Exception in get_historical_data: {e}")
-            return None
-    
+    def get_ltp(self, security_id, exchange_segment: str = "NSE_FNO") -> float:
+        """Fetch current LTP unwrapping Dhan's nested marketfeed/ohlc response with error tolerance."""
+        try:
+            sec_id_lookup = int(security_id) if str(security_id).isdigit() else security_id
+            resp = self._make_request(self.dhan.ohlc_data, securities={exchange_segment: [sec_id_lookup]})
+            if resp and isinstance(resp, dict):
+                raw_d = resp.get('data', {})
+                if isinstance(raw_d, dict) and 'data' in raw_d and isinstance(raw_d['data'], dict):
+                    raw_d = raw_d['data']
+                if isinstance(raw_d, dict):
+                    seg_data = raw_d.get(exchange_segment, {})
+                    if isinstance(seg_data, dict):
+                        d = seg_data.get(str(security_id), {}) or seg_data.get(sec_id_lookup, {})
+                        if isinstance(d, dict):
+                            val = float(d.get('last_price', 0) or d.get('ltp', 0) or d.get('close', 0))
+                            if val > 0:
+                                return val
+        except Exception as e:
+            self.logger.debug(f"get_ltp failed for {security_id} via ohlc_data: {e}")
+        return 0.0
+
     def get_positions(self) -> Optional[List[Dict]]:
         """Get current open positions"""
         try:

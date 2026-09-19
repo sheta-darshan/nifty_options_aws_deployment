@@ -1,4 +1,6 @@
 import os
+import sys
+import subprocess
 import time
 import logging
 from datetime import datetime, timedelta, time as dt_time
@@ -105,10 +107,11 @@ class ThreadedBotManager:
                         except Exception as e:
                             self.logger.error(f"[MANAGER] [SQ_OFF] Failed to square off positions for '{acc_name}': {e}")
                 
-                # 3:35 PM Daily Telegram PnL & Risk Digest trigger
+                # 3:35 PM Daily Telegram PnL & Risk Digest and Stock Selection Rotation trigger
                 if not digest_sent and current_time >= dt_time(15, 35):
-                    self.logger.info("[MANAGER] 3:35 PM reached. Triggering Daily PnL & Risk Digest...")
+                    self.logger.info("[MANAGER] 3:35 PM reached. Triggering Daily PnL & Risk Digest and Pre-Breakout Stock Rotation...")
                     self.send_daily_digest()
+                    self.run_prebreakout_stock_rotation(top_k=3)
                     digest_sent = True
 
                 # 1. Periodically reload instruments (every 5 minutes)
@@ -147,6 +150,7 @@ class ThreadedBotManager:
                     if not digest_sent:
                         self.logger.info("[MANAGER] Sending EOD Daily PnL & Risk Digest before shutdown...")
                         self.send_daily_digest()
+                        self.run_prebreakout_stock_rotation(top_k=3)
                         digest_sent = True
                     self.position_manager.stop()
                     self.position_manager.join(timeout=3)
@@ -354,7 +358,7 @@ class ThreadedBotManager:
 
         if trade_log_file and os.path.exists(trade_log_file):
             try:
-                df_trades = pd.read_csv(trade_log_file)
+                df_trades = pd.read_csv(trade_log_file, on_bad_lines='skip')
                 if 'timestamp' in df_trades.columns:
                     df_trades['date'] = df_trades['timestamp'].astype(str).str.slice(0, 10)
                     today_df = df_trades[df_trades['date'] == today_str]
@@ -422,4 +426,46 @@ class ThreadedBotManager:
                 self.logger.info(f"[MANAGER] AlertManager not configured. Digest:\n{digest_msg}")
         except Exception as e:
             self.logger.error(f"[MANAGER] Failed to generate/send daily digest: {e}")
+
+    def run_prebreakout_stock_rotation(self, top_k: int = 3):
+        """
+        Runs the Institutional Pre-Breakout Stock Selection scanner post-market (15:35 IST)
+        to identify coiled momentum candidates for tomorrow's session and update instruments.json.
+        """
+        self.logger.info(f"[MANAGER] Running EOD Pre-Breakout Stock Selection (top {top_k})...")
+        try:
+            script_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "stock_selection",
+                "select_prebreakout.py"
+            )
+            if not os.path.exists(script_path):
+                self.logger.warning(f"[MANAGER] Pre-breakout script not found at {script_path}")
+                return
+
+            res = subprocess.run(
+                [sys.executable, script_path, "--top-k", str(top_k), "--rotate"],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if res.returncode == 0:
+                self.logger.info("[MANAGER] Pre-breakout stock rotation completed successfully.")
+                # Reload instruments.json so in-memory config reflects rotated candidates
+                reload_ok = self.config.reload_instruments()
+                if reload_ok:
+                    self.config.build_master_index(self.logger)
+                    self.logger.info("[MANAGER] In-memory instruments reloaded with rotated stock setups.")
+
+                if self.alert_manager:
+                    self.alert_manager.send_alert(
+                        f"🎯 *Pre-Breakout Stock Selection Complete*\n"
+                        f"Rotated top {top_k} coiled stocks into `instruments.json` for tomorrow's session.\n"
+                        f"Execution Mode: STOCK | Strategy: Strategy_24 (Opening Breakout)",
+                        header="EOD Stock Rotation"
+                    )
+            else:
+                self.logger.error(f"[MANAGER] Pre-breakout rotation failed with returncode {res.returncode}:\n{res.stderr}")
+        except Exception as e:
+            self.logger.error(f"[MANAGER] Error during pre-breakout stock rotation: {e}")
 

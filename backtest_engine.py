@@ -204,7 +204,7 @@ class SimulationEngine:
             # Apply strategy-specific overrides if active
             strat_name = self.strategy.name if self.strategy else getattr(self.config, 'active_strategy', None)
             if not strat_name:
-                for i in range(1, 24):
+                for i in range(1, 25):
                     if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
                         strat_name = f"Strategy_{i}"
                         break

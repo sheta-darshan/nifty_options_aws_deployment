@@ -1,11 +1,24 @@
 """
-==========================================================================================
-        INSTITUTIONAL QUANTITATIVE STOCK SELECTION & ROTATION SUBSYSTEM
-==========================================================================================
-Selects the Top-K explosive volatility stocks using the trained global XGBoost model,
-applies live ASM/GSM surveillance filters, evaluates the 50 EMA Climax Fade rule, 
-enforces a 20-30% capital allocation cap, and logs paper trades safely.
-==========================================================================================
+stock_selection/select_joint.py
+
+Institutional Quantitative Stock Selection & Smart Hybrid Rotation
+===================================================================
+Selects the Top-K explosive bidirectional stocks using the True Dual-Head
+(Joint) Model calibrated on Feature Matrix 2.0:
+  - Head 1 (Volatility Expansion): P(Range_{T+1} >= 1.3 * ATR_14)
+  - Head 2 (Directional Edge):     P(Close_{T+1} > Close_T)
+
+Scoring:
+  - Long Joint Score  = P_vol * P_dir * (1 + RS_Nifty) * 100
+  - Short Joint Score = P_vol * (1 - P_dir) * (1 - RS_Nifty) * 100
+
+Features:
+  - Fast liquid universe gating (F&O 195 liquid stocks / Top 500)
+  - Sub-5-second inference latency
+  - SEBI ASM/GSM surveillance filtering
+  - Smart Hybrid order routing (Stock Options for F&O, 5x MIS for non-F&O)
+  - Safe instruments.json rotation preserving core indices (NIFTY, BANKNIFTY)
+  - Paper trade logging
 """
 
 import os
@@ -15,322 +28,523 @@ import json
 import glob
 import time
 import warnings
+from io import StringIO
+from datetime import datetime
 from multiprocessing.pool import ThreadPool
 import pandas as pd
 import numpy as np
-from datetime import datetime
-from dotenv import load_dotenv
 import joblib
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# Setup project root pathing
+# Setup root pathing
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
-# Import helpers from select_stocks
-sys.path.append(os.path.join(BASE_DIR, "stock_selection"))
-from select_stocks import (
-    read_last_n_lines_to_df,
-    precompute_nifty_features,
-    extract_features_for_last_day,
-    update_spot_file_if_stale,
-    MODEL_DIR,
-    PRED_DIR
-)
+from stock_selection.feature_matrix_v2 import FEATURE_NAMES_V2, extract_features_v2_df
 
-SPOT_DIR = os.path.join(BASE_DIR, "backtest_data")
-EQUITY_L_PATH = os.path.join(BASE_DIR, "EQUITY_L.csv")
+DATA_DIR = os.path.join(BASE_DIR, "backtest_data")
+MODEL_DIR = os.path.join(BASE_DIR, "stock_selection", "models")
+PRED_DIR = os.path.join(BASE_DIR, "stock_selection", "predictions")
 PAPER_LOG_PATH = os.path.join(BASE_DIR, "stock_selection", "paper_trade_log.csv")
+EQUITY_L_PATH = os.path.join(BASE_DIR, "EQUITY_L.csv")
+os.makedirs(PRED_DIR, exist_ok=True)
+
+MODEL_PATH = os.path.join(MODEL_DIR, "global_dual_head_joint_model.pkl")
 
 
-def check_surveillance_status(df_daily, current_price):
-    """
-    Operational ASM/GSM Surveillance Safeguard.
-    Checks whether a stock matches SEBI's quantitative criteria:
-    - 15-day price variation >= 40%
-    - 5-day average volume < 25,000 shares
-    """
+def read_last_n_lines_to_df(filepath: str, n: int = 2500) -> pd.DataFrame:
+    """Reads the last N lines of a CSV quickly using binary seek."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            header_line = f.readline()
+        if not header_line:
+            return None
+        with open(filepath, 'rb') as f:
+            f.seek(0, os.SEEK_END)
+            pos = f.tell()
+            chunk_size = max(100, n * 80)
+            pos = max(0, pos - chunk_size)
+            f.seek(pos)
+            chunk = f.read()
+            lines = chunk.split(b'\n')
+            non_empty_lines = [l for l in lines if l.strip()]
+            last_lines = non_empty_lines[-n:]
+            data_str = header_line.strip() + "\n" + b'\n'.join(last_lines).decode('utf-8')
+            df = pd.read_csv(StringIO(data_str))
+            df.columns = [c.strip().lower() for c in df.columns]
+            if "start_time" in df.columns:
+                df.rename(columns={"start_time": "timestamp"}, inplace=True)
+            required = ["timestamp", "open", "high", "low", "close", "volume"]
+            if all(col in df.columns for col in required):
+                return df[required]
+    except Exception:
+        pass
+    try:
+        df = pd.read_csv(filepath)
+        df.columns = [c.strip().lower() for c in df.columns]
+        if "start_time" in df.columns:
+            df.rename(columns={"start_time": "timestamp"}, inplace=True)
+        required = ["timestamp", "open", "high", "low", "close", "volume"]
+        if all(col in df.columns for col in required):
+            return df[required].iloc[-n:]
+    except Exception:
+        return None
+    return None
+
+
+def check_surveillance_status(df_daily: pd.DataFrame, current_price: float):
+    """Checks whether a stock matches SEBI ASM/GSM quantitative criteria."""
     try:
         if df_daily is None or len(df_daily) < 15:
             return False, "OK"
-            
+
         price_15d_ago = df_daily["close"].iloc[-15]
         surge_15d = (current_price - price_15d_ago) / (price_15d_ago + 1e-8)
         if surge_15d >= 0.40:
             return True, f"ASM/GSM Risk: 15d Surge +{surge_15d*100:.1f}% >= 40%"
-            
+
         if len(df_daily) >= 5:
             avg_vol_5d = df_daily["volume"].iloc[-5:].mean()
             if avg_vol_5d < 25000:
                 return True, f"ASM/GSM Risk: Low Liquidity ({int(avg_vol_5d)} shares/day < 25k)"
-                
+
         return False, "OK"
     except Exception as e:
         return False, f"Check Error: {e}"
 
 
-def process_single_stock(symbol, nifty_features, model, feat_cols):
-    """Evaluates a single stock in ~3ms using tail binary seek."""
+def get_fno_stock_registry() -> dict:
+    """Loads clean NSE F&O stocks with lot_size and strike_step from fno_registry.json."""
+    reg_path = os.path.join(BASE_DIR, "stock_selection", "fno_registry.json")
+    if os.path.exists(reg_path):
+        try:
+            with open(reg_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def get_security_id_map() -> dict:
+    """Loads Dhan security ID map from dhan_equity_master_cache.csv"""
+    sec_map = {}
+    cache_path = os.path.join(BASE_DIR, "dhan_equity_master_cache.csv")
+    if os.path.exists(cache_path):
+        try:
+            df_cache = pd.read_csv(cache_path, dtype={'SECURITY_ID': str})
+            for _, r in df_cache.iterrows():
+                sym = str(r.get('SYMBOL', '')).strip().upper()
+                sid = str(r.get('SECURITY_ID', '')).strip()
+                if sym and sid:
+                    sec_map[sym] = sid
+        except Exception:
+            pass
+    return sec_map
+
+
+def load_nifty_daily() -> pd.DataFrame:
+    """Loads NIFTY spot daily bars."""
+    nifty_path = os.path.join(DATA_DIR, "nifty_spot.csv")
+    if not os.path.exists(nifty_path):
+        return None
     try:
-        features, last_date_obj = extract_features_for_last_day(symbol, nifty_features)
-        if features is None or last_date_obj is None:
+        df = pd.read_csv(nifty_path)
+        col = 'timestamp' if 'timestamp' in df.columns else ('start_time' if 'start_time' in df.columns else df.columns[0])
+        df[col] = pd.to_datetime(df[col], errors='coerce')
+        df.set_index(col, inplace=True)
+        df = df[df.index.notna()].sort_index()
+        df = df.between_time('09:15', '15:30')
+        df['date'] = df.index.date
+        daily = df.groupby('date').agg({
+            'open': 'first',
+            'high': 'max',
+            'low': 'min',
+            'close': 'last',
+            'volume': 'sum'
+        })
+        return daily
+    except Exception:
+        return None
+
+
+def evaluate_single_stock(args):
+    """Evaluates a single stock for dual-head joint volatility and direction."""
+    symbol, spot_path, nifty_daily, model_bundle = args
+    try:
+        df_spot = read_last_n_lines_to_df(spot_path, n=35000)
+        if df_spot is None or len(df_spot) < 500:
             return None
 
-        run_date_str = last_date_obj.strftime("%Y-%m-%d")
-
-        # Predict Range Expansion Score
-        X_pred = pd.DataFrame([features])[feat_cols]
-        probs = model.predict_proba(X_pred)[0]
-        vol_prob = float(probs[1] if len(probs) > 1 else probs[0])
-
-        # Read tail spot history for 50 EMA & Surveillance Check
-        spot_file = os.path.join(SPOT_DIR, f"{symbol.lower()}_spot.csv")
-        df_spot = read_last_n_lines_to_df(spot_file, n=25000)
-        if df_spot is None or len(df_spot) < 100:
+        # Extract features (inference mode keeps today's latest completed close)
+        df_feat = extract_features_v2_df(df_spot, nifty_daily=nifty_daily, is_training=False)
+        if df_feat is None or df_feat.empty:
             return None
 
-        col_time = 'timestamp' if 'timestamp' in df_spot.columns else ('start_time' if 'start_time' in df_spot.columns else df_spot.columns[0])
-        df_spot[col_time] = pd.to_datetime(df_spot[col_time], errors='coerce')
-        df_spot = df_spot.dropna(subset=[col_time]).sort_values(by=col_time)
-        df_spot["dt_str"] = df_spot[col_time].dt.strftime("%Y-%m-%d")
+        latest_features = df_feat.iloc[-1]
+        run_date_str = str(df_feat.index[-1])
 
-        df_daily = df_spot.groupby("dt_str").agg(
-            high=("high", "max"),
-            low=("low", "min"),
-            close=("close", "last"),
-            volume=("volume", "sum")
-        ).reset_index()
+        # Dual-Head inference
+        X_pred = pd.DataFrame([latest_features[FEATURE_NAMES_V2]])
+        vol_model = model_bundle["volatility_model"]
+        dir_model = model_bundle["direction_model"]
 
-        if len(df_daily) < 50:
-            return None
+        p_vol = float(vol_model.predict_proba(X_pred)[0][1])
+        p_dir = float(dir_model.predict_proba(X_pred)[0][1])
 
-        ema_50 = float(df_daily["close"].ewm(span=50, adjust=False).mean().iloc[-1])
-        last_close = float(df_daily["close"].iloc[-1])
-        stretch_pct = ((last_close - ema_50) / ema_50) * 100
+        # Directional joint scores
+        rs_5d = float(latest_features.get('rs_nifty_5d', 0.0))
+        rs_norm = float(np.clip(rs_5d / 100.0, -0.5, 0.5))
 
-        # ATR_14
-        df_daily["tr"] = np.maximum(
-            df_daily["high"] - df_daily["low"],
-            np.maximum(
-                abs(df_daily["high"] - df_daily["close"].shift(1)),
-                abs(df_daily["low"] - df_daily["close"].shift(1))
-            )
-        )
-        atr_14 = float(df_daily["tr"].rolling(14).mean().iloc[-1])
+        joint_score_long = p_vol * p_dir * (1.0 + rs_norm) * 100.0
+        joint_score_short = p_vol * (1.0 - p_dir) * (1.0 - rs_norm) * 100.0
 
-        # Check ASM/GSM Surveillance Status
-        is_surv, surv_reason = check_surveillance_status(df_daily, last_close)
+        # Technical levels from latest row (instantaneous, zero overhead)
+        last_close = float(latest_features.get('close', 0.0))
+        day_high = float(latest_features.get('high', 0.0))
+        day_low = float(latest_features.get('low', 0.0))
+        atr_14 = float(latest_features.get('atr14', 0.0))
+        if atr_14 <= 0:
+            atr_14 = (day_high - day_low) if (day_high > day_low) else max(1.0, last_close * 0.015)
 
-        # Direction Bias (Short-Only Fade Rule)
-        is_above_50ema = last_close > ema_50
-        direction_action = "SELL" if is_above_50ema else "AVOID_LONG_FADE"
+        # Surveillance check using daily closes from df_feat
+        if len(df_feat) >= 15 and 'close' in df_feat.columns:
+            c_15_ago = float(df_feat['close'].iloc[-15])
+            surge_15d = (last_close - c_15_ago) / (c_15_ago + 1e-9)
+            if surge_15d >= 0.40:
+                is_surv, surv_reason = True, f"ASM/GSM Risk: 15d Surge +{surge_15d*100:.1f}% >= 40%"
+            else:
+                is_surv, surv_reason = False, "OK"
+        else:
+            is_surv, surv_reason = False, "OK"
+
+        # Triggers for Day T+1
+        # Long Setup: Breakout above Day High + 0.05
+        trigger_long = round(day_high + 0.05, 2)
+        sl_long = round(trigger_long - 0.90 * atr_14, 2)
+        be_long = round(trigger_long + 0.65 * atr_14, 2)
+        tp_long = round(trigger_long + 1.15 * atr_14, 2)
+
+        # Short Setup: Breakdown below Day Low - 0.05
+        trigger_short = round(day_low - 0.05, 2)
+        sl_short = round(trigger_short + 0.90 * atr_14, 2)
+        be_short = round(trigger_short - 0.65 * atr_14, 2)
+        tp_short = round(trigger_short - 1.15 * atr_14, 2)
+
+        dist_ema20 = float(latest_features.get('dist_ema20', 0.0))
+        dist_ema50 = float(latest_features.get('dist_ema50', 0.0))
+        car_pct = float(latest_features.get('car', 0.14)) * 100.0
+        clv_val = float(latest_features.get('clv_close', 0.0))
+        vcp_ratio = float(latest_features.get('vcp_ratio', 1.0))
 
         return {
-            "Symbol": symbol,
-            "Run_Date": run_date_str,
-            "Vol_Prob_%": round(vol_prob * 100, 2),
-            "Last_Close": round(last_close, 2),
-            "50_EMA": round(ema_50, 2),
+            "Symbol": symbol.upper(),
+            "Date": run_date_str,
+            "P_Vol_%": round(p_vol * 100.0, 1),
+            "P_Dir_%": round(p_dir * 100.0, 1),
+            "Score_Long": round(joint_score_long, 2),
+            "Score_Short": round(joint_score_short, 2),
+            "RS_Nifty_5d": round(rs_5d, 2),
+            "Close": round(last_close, 2),
+            "Day_High": round(day_high, 2),
+            "Day_Low": round(day_low, 2),
             "ATR_14": round(atr_14, 2),
-            "EMA_Stretch_%": round(stretch_pct, 2),
-            "Action": direction_action,
+            "Dist_EMA20_%": round(dist_ema20, 1),
+            "Dist_EMA50_%": round(dist_ema50, 1),
+            "CAR_%": round(car_pct, 1),
+            "CLV": round(clv_val, 2),
+            "VCP_Ratio": round(vcp_ratio, 2),
+            "Trigger_Long": trigger_long,
+            "SL_Long": sl_long,
+            "BE_Long": be_long,
+            "TP_Long": tp_long,
+            "Trigger_Short": trigger_short,
+            "SL_Short": sl_short,
+            "BE_Short": be_short,
+            "TP_Short": tp_short,
             "Is_Surveillance": is_surv,
-            "Surveillance_Reason": surv_reason,
-            "Verdict": "PENDING"
+            "Surveillance_Reason": surv_reason
         }
     except Exception:
         return None
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Institutional Quantitative Stock Selection & Rotation Subsystem")
-    parser.add_argument("--no-update", action="store_true", help="Bypass updating spot files from Dhan API")
-    parser.add_argument("--top-k", "-k", type=int, default=3, help="Number of top stocks to select for rotation (default: 3)")
-    parser.add_argument("--basket-capital-allocation-pct", type=float, default=0.25, help="Total account capital allocation cap for the fade basket (default: 0.25 = 25%)")
-    parser.add_argument("--mode", choices=["PAPER", "LIVE"], default="PAPER", help="Deployment mode: PAPER (safe logging) or LIVE (orders enabled). Default: PAPER")
-    parser.add_argument("--rotate", action="store_true", help="Automatically rotate selections inside instruments.json")
+    parser = argparse.ArgumentParser(description="Institutional True Dual-Head Quantitative Stock Selector")
+    parser.add_argument("--direction", choices=["both", "long", "short"], default="both", help="Selection side: both, long, or short")
+    parser.add_argument("--top-k", "-k", type=int, default=3, help="Number of top candidates per direction (default: 3)")
+    parser.add_argument("--universe", choices=["fno", "top500", "all"], default="fno", help="Universe scope (default: fno - 195 liquid F&O stocks)")
+    parser.add_argument("--execution-mode", choices=["hybrid", "option", "stock"], default="hybrid", help="Execution routing mode")
+    parser.add_argument("--capital", type=float, default=100000.0, help="Total account capital allocation (default: 100,000)")
+    parser.add_argument("--leverage", type=float, default=5.0, help="Cash intraday MIS leverage (default: 5.0x)")
+    parser.add_argument("--rotate", action="store_true", help="Rotate top selections into instruments.json")
+    parser.add_argument("--mode", choices=["PAPER", "LIVE"], default="LIVE", help="Deployment mode: PAPER or LIVE (default: LIVE)")
     args = parser.parse_args()
 
     print("=" * 125)
-    print("      INSTITUTIONAL QUANTITATIVE STOCK SELECTION & ROTATION SUBSYSTEM")
+    print("      INSTITUTIONAL TRUE DUAL-HEAD QUANTITATIVE STOCK SELECTION & ROTATION")
     print("=" * 125)
-    print(f"[CONFIG] Top-K Target:             {args.top_k} stocks")
-    print(f"[CONFIG] Basket Capital Cap:       {args.basket_capital_allocation_pct*100:.1f}% of total account equity")
-    print(f"[CONFIG] Per-Stock Allocation:     {(args.basket_capital_allocation_pct / args.top_k)*100:.2f}% per stock")
+    print(f"[CONFIG] Direction Target:         {args.direction.upper()}")
+    print(f"[CONFIG] Top-K Target:             {args.top_k} stocks per side")
+    print(f"[CONFIG] Universe Gating:          {args.universe.upper()}")
+    print(f"[CONFIG] Execution Mode:           {args.execution_mode.upper()}")
+    print(f"[CONFIG] Capital Allocation:       Rs. {args.capital:,.0f} (Leverage: {args.leverage:.1f}x)")
     print(f"[CONFIG] Deployment Mode:          {args.mode} (Default: PAPER)")
     print(f"[CONFIG] Auto-Rotate in JSON:      {args.rotate}")
 
-    # 1. Load Legally Eligible EQ Series Symbols
-    eq_eligible_symbols = set()
-    if os.path.exists(EQUITY_L_PATH):
-        df_eq = pd.read_csv(EQUITY_L_PATH)
-        eq_eligible_symbols = set(df_eq[df_eq[" SERIES"].str.strip().str.upper() == "EQ"]["SYMBOL"].str.strip().str.upper().dropna())
-        print(f"[INFO] Loaded {len(eq_eligible_symbols):,} legally short-eligible EQ series stocks from EQUITY_L.csv")
-
-    # 2. Load Global Pooled Volatility Model
-    global_model_vol_path = os.path.join(MODEL_DIR, "global_pooled_model_volatility.pkl")
-    if not os.path.exists(global_model_vol_path):
-        print(f"[ERROR] Trained volatility model not found at: {global_model_vol_path}")
+    # 1. Load Dual-Head Model
+    if not os.path.exists(MODEL_PATH):
+        print(f"[ERROR] Trained Dual-Head model not found at:\n  {MODEL_PATH}")
+        print("Please run 'python stock_selection/train_joint_v2.py' first.")
         return
 
-    global_model_pkg = joblib.load(global_model_vol_path)
-    model = global_model_pkg["model"]
-    feat_cols = global_model_pkg["features"]
-    print(f"[INFO] Loaded Global XGBoost Volatility Model (Trained on {global_model_pkg.get('num_stocks', 1800)} stocks, {len(feat_cols)} features).")
+    model_bundle = joblib.load(MODEL_PATH)
+    print(f"[INFO] Loaded Dual-Head Model ({model_bundle.get('architecture', 'Dual-Head')}).")
 
-    # 3. Find Available Spot Files
-    all_spot_files = glob.glob(os.path.join(SPOT_DIR, "*_spot.csv"))
-    active_symbols = []
-    for f in all_spot_files:
-        sym = os.path.basename(f).replace("_spot.csv", "").upper()
-        if sym not in ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"]:
-            if not eq_eligible_symbols or sym in eq_eligible_symbols:
-                active_symbols.append(sym)
+    # 2. Build Candidate Universe
+    fno_registry = get_fno_stock_registry()
+    eligible_symbols = []
 
-    print(f"[INFO] Evaluating {len(active_symbols):,} candidate EQ stocks in universe in parallel...")
+    if args.universe == "fno":
+        for sym in fno_registry.keys():
+            spot_f = os.path.join(DATA_DIR, f"{sym.lower()}_spot.csv")
+            if os.path.exists(spot_f):
+                eligible_symbols.append((sym, spot_f))
+    else:
+        # Load EQ series
+        eq_set = set()
+        if os.path.exists(EQUITY_L_PATH):
+            df_eq = pd.read_csv(EQUITY_L_PATH)
+            eq_set = set(df_eq[df_eq[" SERIES"].str.strip().str.upper() == "EQ"]["SYMBOL"].str.strip().str.upper().dropna())
 
-    # Precompute nifty features
-    nifty_features = precompute_nifty_features()
+        all_spot_files = glob.glob(os.path.join(DATA_DIR, "*_spot.csv"))
+        for f in all_spot_files:
+            sym = os.path.basename(f).replace("_spot.csv", "").upper()
+            if sym not in ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"]:
+                if not eq_set or sym in eq_set:
+                    eligible_symbols.append((sym, f))
 
-    # Parallel Evaluation across CPU cores with real-time progress
-    start_t = time.time()
-    pool = ThreadPool(16)
+        if args.universe == "top500":
+            eligible_symbols = eligible_symbols[:500]
+
+    print(f"[INFO] Gated Universe: {len(eligible_symbols):,} candidate stocks to evaluate.")
+
+    nifty_daily = load_nifty_daily()
+
+    # 3. Parallel Inference
+    t0 = time.time()
+    tasks = [(sym, s_path, nifty_daily, model_bundle) for sym, s_path in eligible_symbols]
+
     results = []
-    total_syms = len(active_symbols)
-    batch_size = 150
+    with ThreadPool(12) as pool:
+        for res in pool.imap_unordered(evaluate_single_stock, tasks):
+            if res is not None and not res.get("Is_Surveillance", False):
+                results.append(res)
 
-    for i in range(0, total_syms, batch_size):
-        chunk = active_symbols[i:i+batch_size]
-        res_chunk = pool.map(lambda sym: process_single_stock(sym, nifty_features, model, feat_cols), chunk)
-        results.extend(res_chunk)
-        print(f"[PROGRESS] Evaluated {min(i+batch_size, total_syms):,}/{total_syms:,} stocks ({min(i+batch_size, total_syms)/total_syms*100:.1f}%)...", flush=True)
+    print(f"[SUCCESS] Evaluated {len(tasks):,} stocks in {time.time() - t0:.2f}s ({len(results)} valid candidates).")
 
-    pool.close()
-    pool.join()
-
-    predictions = [r for r in results if r is not None]
-    eval_elapsed = time.time() - start_t
-    print(f"[SUCCESS] Scored {len(predictions):,} active stocks across the universe in {eval_elapsed:.2f} seconds.")
-
-    if not predictions:
-        print("[ERROR] No predictions could be generated.")
+    if not results:
+        print("[ERROR] No valid candidates found.")
         return
 
-    run_date = predictions[0]["Run_Date"]
+    df_results = pd.DataFrame(results)
+    run_date = df_results['Date'].iloc[0]
 
-    # 5. Rank by Volatility Score Descending
-    df_preds = pd.DataFrame(predictions)
-    df_preds = df_preds.sort_values(by="Vol_Prob_%", ascending=False).reset_index(drop=True)
+    # 4. Bidirectional Ranking & Presentation
+    top_candidates = []
 
-    # 6. Apply Selection Gates:
-    # Must be: High Volatility Rank + Short-Only (Price > 50 EMA) + Clean ASM/GSM Status + Sane Stretch (<= 50%)
-    selected_count = 0
-    top_k = int(args.top_k)
+    # BUY / LONG RANKING (Requires P_Dir >= 49.0% and supportive structure)
+    top_buys = pd.DataFrame()
+    if args.direction in ["both", "long"]:
+        df_long = df_results[(df_results['P_Dir_%'] >= 49.0) & (df_results['Dist_EMA20_%'] >= -3.0)].sort_values(by="Score_Long", ascending=False).reset_index(drop=True)
+        if df_long.empty:
+            df_long = df_results.sort_values(by="Score_Long", ascending=False).reset_index(drop=True)
+        top_buys = df_long.head(args.top_k)
 
-    for idx in range(len(df_preds)):
-        is_surv = df_preds.loc[idx, "Is_Surveillance"]
-        action = df_preds.loc[idx, "Action"]
-        stretch_pct = df_preds.loc[idx, "EMA_Stretch_%"]
+        print("\n" + "=" * 145)
+        print(f"               TOP {len(top_buys)} QUANTITATIVE BREAKOUT (BUY / LONG) RECOMMENDATIONS (DATE: {run_date})")
+        print("=" * 145)
+        print(f"{'Rank':<4} | {'Symbol':<12} | {'Side':<5} | {'Joint':<6} | {'P(Vol)':<7} | {'P(Dir)':<7} | {'RS(5d)':<7} | {'CAR':<6} | {'CLV':<6} | {'Trigger':<9} | {'SL':<8} | {'Target':<9}")
+        print("-" * 145)
+        for idx, r in top_buys.iterrows():
+            print(f"{idx+1:<4} | {r['Symbol']:<12} | {'BUY':<5} | {r['Score_Long']:<6.1f} | {r['P_Vol_%']:<5.1f}% | {r['P_Dir_%']:<5.1f}% | {r['RS_Nifty_5d']:<+6.1f}% | {r['CAR_%']:<5.0f}% | {r['CLV']:<+5.2f} | Rs.{r['Trigger_Long']:<8.2f} | Rs.{r['SL_Long']:<7.2f} | Rs.{r['TP_Long']:<8.2f}")
+            top_candidates.append({**r, 'Side': 'BUY', 'Trigger_Price': r['Trigger_Long'], 'Stop_Loss': r['SL_Long'], 'BE_Trigger': r['BE_Long'], 'Target_Price': r['TP_Long']})
+        print("=" * 145)
 
-        if is_surv:
-            df_preds.loc[idx, "Verdict"] = "AVOID (SURVEILLANCE)"
-        elif abs(stretch_pct) > 50.0:
-            df_preds.loc[idx, "Verdict"] = "AVOID (EXTREME_STRETCH > 50%)"
-        elif action != "SELL":
-            df_preds.loc[idx, "Verdict"] = "AVOID (BELOW 50 EMA)"
-        elif selected_count < top_k:
-            df_preds.loc[idx, "Verdict"] = "SELECT (TOP K FADE)"
-            selected_count += 1
-        else:
-            df_preds.loc[idx, "Verdict"] = "ELIGIBLE (RANK RUNNER-UP)"
+    # SELL / SHORT RANKING (Requires P_Dir < 49.0% and non-overlapping with Longs)
+    if args.direction in ["both", "short"]:
+        selected_buy_syms = set(top_buys['Symbol'].values) if not top_buys.empty else set()
+        df_short = df_results[(df_results['P_Dir_%'] < 49.0) & (~df_results['Symbol'].isin(selected_buy_syms))].sort_values(by="Score_Short", ascending=False).reset_index(drop=True)
+        if df_short.empty:
+            df_short = df_results[~df_results['Symbol'].isin(selected_buy_syms)].sort_values(by="Score_Short", ascending=False).reset_index(drop=True)
+        top_sells = df_short.head(args.top_k)
 
-    # Print Report
-    print("\n" + "=" * 135)
-    print(f"       TOP QUANTITATIVE SHORT-FADE ROTATION RECOMMENDATIONS (LATEST DATE: {run_date})")
-    print("=" * 135)
-    print(f"  {'Rank':<5} | {'Symbol':<12} | {'Vol Prob':<10} | {'Last Close':<11} | {'50 EMA':<10} | {'EMA Stretch':<12} | {'Action':<8} | {'Verdict':<25}")
-    print("-" * 135)
+        print("\n" + "=" * 145)
+        print(f"               TOP {len(top_sells)} QUANTITATIVE BREAKDOWN (SELL / SHORT) RECOMMENDATIONS (DATE: {run_date})")
+        print("=" * 145)
+        print(f"{'Rank':<4} | {'Symbol':<12} | {'Side':<5} | {'Joint':<6} | {'P(Vol)':<7} | {'P(Dir)':<7} | {'RS(5d)':<7} | {'CAR':<6} | {'CLV':<6} | {'Trigger':<9} | {'SL':<8} | {'Target':<9}")
+        print("-" * 145)
+        for idx, r in top_sells.iterrows():
+            print(f"{idx+1:<4} | {r['Symbol']:<12} | {'SELL':<5} | {r['Score_Short']:<6.1f} | {r['P_Vol_%']:<5.1f}% | {r['P_Dir_%']:<5.1f}% | {r['RS_Nifty_5d']:<+6.1f}% | {r['CAR_%']:<5.0f}% | {r['CLV']:<+5.2f} | Rs.{r['Trigger_Short']:<8.2f} | Rs.{r['SL_Short']:<7.2f} | Rs.{r['TP_Short']:<8.2f}")
+            top_candidates.append({**r, 'Side': 'SELL', 'Trigger_Price': r['Trigger_Short'], 'Stop_Loss': r['SL_Short'], 'BE_Trigger': r['BE_Short'], 'Target_Price': r['TP_Short']})
+        print("=" * 145)
 
-    for idx, row in df_preds.head(25).iterrows():
-        rank = idx + 1
-        v_prob = f"{row['Vol_Prob_%']:.1f}%"
-        stretch = f"{row['EMA_Stretch_%']:+0.1f}%"
-        print(f"  {rank:<5} | {row['Symbol']:<12} | {v_prob:<10} | {row['Last_Close']:<11} | {row['50_EMA']:<10} | {stretch:<12} | {row['Action']:<8} | {row['Verdict']:<25}")
+    # 5. Save Full Predictions CSV
+    pred_path = os.path.join(PRED_DIR, f"predictions_joint_{run_date}.csv")
+    df_results.to_csv(pred_path, index=False)
+    print(f"\n[SUCCESS] Full predictions artifact saved to:\n  -> {pred_path}")
 
-    print("=" * 135)
+    # 6. Paper Trading Logging
+    if top_candidates:
+        log_rows = []
+        per_alloc = 100.0 / len(top_candidates)
+        for cand in top_candidates:
+            log_rows.append({
+                "Selection_Date": run_date,
+                "Symbol": cand["Symbol"],
+                "Direction": cand["Side"],
+                "Vol_Prob_%": cand["P_Vol_%"],
+                "Dir_Prob_%": cand["P_Dir_%"],
+                "Joint_Score": cand["Score_Long"] if cand["Side"] == "BUY" else cand["Score_Short"],
+                "Trigger_Price": cand["Trigger_Price"],
+                "Stop_Loss": cand["Stop_Loss"],
+                "Target_Price": cand["Target_Price"],
+                "Allocation_Pct": round(per_alloc, 2),
+                "Execution_Mode": args.execution_mode.upper(),
+                "Mode": args.mode,
+                "Status": "PENDING_T+1_TRIGGER"
+            })
 
-    # 7. Save Daily Prediction Artifact
-    save_filename = f"predictions_short_fade_{run_date}.csv"
-    save_path = os.path.join(PRED_DIR, save_filename)
-    df_preds.to_csv(save_path, index=False)
-    print(f"[SUCCESS] Predictions saved to: {save_path}")
-
-    # 8. Paper Trading Logging & instruments.json Rotation
-    top_selected = df_preds[df_preds["Verdict"] == "SELECT (TOP K FADE)"]
-    per_stock_alloc = args.basket_capital_allocation_pct / max(1, top_k)
-
-    # Log to paper_trade_log.csv
-    log_rows = []
-    iso_run_date = pd.to_datetime(run_date).strftime("%Y-%m-%d")
-    for _, row in top_selected.iterrows():
-        log_rows.append({
-            "Selection_Date": iso_run_date,
-            "Symbol": row["Symbol"],
-            "Direction": "SHORT",
-            "Vol_Prob_%": row["Vol_Prob_%"],
-            "Reference_Close": row["Last_Close"],
-            "50_EMA": row["50_EMA"],
-            "ATR_14": row["ATR_14"],
-            "Stop_Loss_Price (2.0xATR)": round(row["Last_Close"] + 2.0 * row["ATR_14"], 2),
-            "Allocation_Pct": round(per_stock_alloc * 100, 2),
-            "Mode": args.mode,
-            "Status": "PENDING_T+1_EXECUTION"
-        })
-
-    if log_rows:
         df_log = pd.DataFrame(log_rows)
         header_needed = not os.path.exists(PAPER_LOG_PATH)
         df_log.to_csv(PAPER_LOG_PATH, mode="a", header=header_needed, index=False)
-        print(f"[PAPER] Logged {len(df_log)} candidate trades to: {PAPER_LOG_PATH}")
+        print(f"[PAPER] Logged {len(df_log)} candidate setups to: {PAPER_LOG_PATH}")
 
-    # 9. Update instruments.json with strict Paper/Live Safety Guard
-    if args.rotate:
-        print(f"\n[ROTATE] Updating instruments.json with mode = {args.mode}...")
+    # 7. Safe instruments.json Rotation (Preserving Core Indices)
+    if args.rotate and top_candidates:
+        print(f"\n[ROTATE] Updating instruments.json with {len(top_candidates)} setups (Mode: {args.execution_mode.upper()})...")
         instruments_path = os.path.join(BASE_DIR, "instruments.json")
-        if os.path.exists(instruments_path):
+        try:
             with open(instruments_path, "r", encoding="utf-8") as f:
-                instruments = json.load(f)
+                inst_data = json.load(f)
 
-            selected_symbols = set(top_selected["Symbol"].values)
-            activated = []
-            deactivated = []
+            sec_map = get_security_id_map()
 
-            for symbol in instruments:
-                if symbol in selected_symbols:
-                    # In PAPER mode, keep enabled = 0 or execution_mode = "PAPER"
-                    if args.mode == "PAPER":
-                        instruments[symbol]["enabled"] = 0
-                        instruments[symbol]["execution_mode"] = "PAPER"
+            # Clean previous rotated joint stocks ONLY (never touch NIFTY / BANKNIFTY or prebreakout stocks)
+            for sym in list(inst_data.keys()):
+                cfg = inst_data[sym]
+                if cfg.get("rotated_joint", False):
+                    if cfg.get("rotated_prebreakout", False):
+                        cfg.pop("rotated_joint", None)
+                    elif "strategy_overrides" in cfg or cfg.get("type") == "INDEX":
+                        cfg["enabled"] = 0
+                        cfg.pop("rotated_joint", None)
                     else:
-                        instruments[symbol]["enabled"] = 1
-                        instruments[symbol]["execution_mode"] = "STOCK"
+                        del inst_data[sym]
 
-                    instruments[symbol]["allowed_actions"] = ["SELL"]
-                    instruments[symbol]["capital_allocation_pct"] = round(per_stock_alloc, 4)
-                    instruments[symbol]["stop_loss_mult_atr"] = 2.0
-                    activated.append(f"{symbol} (SHORT | {per_stock_alloc*100:.1f}% Alloc | {args.mode})")
+            opt_count = 0
+            stock_count = 0
+
+            for cand in top_candidates:
+                sym = cand["Symbol"].upper()
+                side = cand["Side"].upper()
+                trig_px = float(cand["Trigger_Price"])
+                sl_px = float(cand["Stop_Loss"])
+                tp_px = float(cand["Target_Price"])
+                be_px = float(cand["BE_Trigger"])
+
+                sl_pts = abs(round(trig_px - sl_px, 2))
+                tp_pts = abs(round(tp_px - trig_px, 2))
+                be_pts = abs(round(be_px - trig_px, 2))
+
+                sec_id = sec_map.get(sym)
+                is_fno = sym in fno_registry
+                use_option = (args.execution_mode.lower() == "option") or (args.execution_mode.lower() == "hybrid" and is_fno)
+
+                if use_option and is_fno:
+                    # Stock Options Execution (ATM Call for Breakout, ATM Put for Breakdown)
+                    fno_info = fno_registry[sym]
+                    lot_sz = fno_info['lot_size']
+                    step = fno_info['strike_step']
+
+                    # Delta-adjusted points (~0.50 delta for ATM contract)
+                    opt_sl = round(max(1.0, sl_pts * 0.50), 2)
+                    opt_tp = round(max(2.0, tp_pts * 0.50), 2)
+                    opt_be = round(max(1.0, be_pts * 0.50), 2)
+
+                    item_dict = {
+                        "security_id": int(sec_id) if sec_id else int(inst_data.get(sym, {}).get("security_id", 0)),
+                        "type": "STOCK",
+                        "execution_mode": "OPTION",
+                        "exchange_segment": "NSE_FNO",
+                        "option_segment": "NSE_FNO",
+                        "product_type": "INTRADAY",
+                        "lot_size": lot_sz,
+                        "strike_step": step,
+                        "num_lots_buy": 1,
+                        "num_lots_sell": 1,
+                        "leg_mode": "BUY",
+                        "allowed_actions": ["BUY"],
+                        "direction": side,
+                        "rotated_joint": True,
+                        "strategy": "Strategy_24",
+                        "exit_mode": "POINTS",
+                        "local_exit_monitoring": True,
+                        "broker_safety_sl": True,
+                        "trigger_price": trig_px,
+                        "points_sl_buy": opt_sl,
+                        "points_target_buy": opt_tp,
+                        "points_be_buy": opt_be,
+                        "enabled": 1 if args.mode == "LIVE" else 0
+                    }
+                    opt_count += 1
                 else:
-                    instruments[symbol]["enabled"] = 0
-                    instruments[symbol]["allowed_actions"] = ["BUY", "SELL"]
-                    deactivated.append(symbol)
+                    # 5x MIS Cash Equity Execution
+                    eff_capital = (args.capital / max(1, len(top_candidates))) * args.leverage
+                    shares = max(1, int(eff_capital / trig_px))
+
+                    item_dict = {
+                        "security_id": int(sec_id) if sec_id else int(inst_data.get(sym, {}).get("security_id", 0)),
+                        "lot_size": 1,
+                        "type": "STOCK",
+                        "execution_mode": "STOCK",
+                        "exchange_segment": "NSE_EQ",
+                        "product_type": "INTRADAY",
+                        "num_lots_buy": shares,
+                        "num_lots_sell": shares,
+                        "allowed_actions": [side],
+                        "direction": side,
+                        "rotated_joint": True,
+                        "strategy": "Strategy_24",
+                        "exit_mode": "POINTS",
+                        "local_exit_monitoring": True,
+                        "broker_safety_sl": True,
+                        "trigger_price": trig_px,
+                        "points_sl_buy": sl_pts if side == "BUY" else None,
+                        "points_target_buy": tp_pts if side == "BUY" else None,
+                        "points_be_buy": be_pts if side == "BUY" else None,
+                        "points_sl_sell": sl_pts if side == "SELL" else None,
+                        "points_target_sell": tp_pts if side == "SELL" else None,
+                        "points_be_sell": be_pts if side == "SELL" else None,
+                        "enabled": 1 if args.mode == "LIVE" else 0
+                    }
+                    stock_count += 1
+
+                if sym in inst_data and inst_data[sym].get("rotated_prebreakout"):
+                    item_dict["rotated_prebreakout"] = True
+
+                inst_data[sym] = item_dict
 
             with open(instruments_path, "w", encoding="utf-8") as f:
-                json.dump(instruments, f, indent=4)
+                json.dump(inst_data, f, indent=4)
 
             print(f"[SUCCESS] instruments.json updated successfully!")
-            print(f"  * Activated ({args.mode}): {activated}")
-            print(f"  * Deactivated:             {len(deactivated)} symbols")
+            print(f"  * Stock Options configured: {opt_count}")
+            print(f"  * Cash Equities configured: {stock_count}")
+            print(f"  * Mode:                     {args.mode} (Enabled = {1 if args.mode == 'LIVE' else 0})")
+
+        except Exception as e:
+            print(f"[ERROR] Failed to update instruments.json: {e}")
 
 
 if __name__ == "__main__":

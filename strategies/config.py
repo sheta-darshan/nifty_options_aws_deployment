@@ -54,10 +54,11 @@ class BacktestConfig:
         self.ENABLE_STRATEGY_21 = False
         self.ENABLE_STRATEGY_22 = False
         self.ENABLE_STRATEGY_23 = False
+        self.ENABLE_STRATEGY_24 = False
         
         # Resolve active strategy parameters to prevent collision
         active_strategy = "Strategy_3"
-        for i in range(1, 24):
+        for i in range(1, 25):
             if getattr(self, f"ENABLE_STRATEGY_{i}", False):
                 active_strategy = f"Strategy_{i}"
                 break

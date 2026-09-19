@@ -71,7 +71,7 @@ class InstrumentBot(threading.Thread):
         # Restore Daily Count from Disk (Per Strategy, Per Account)
         self.daily_trade_counts = {}
         self.daily_sl_counts = {}
-        for i in range(1, 24):
+        for i in range(1, 25):
             strat_name = f"Strategy_{i}"
             restored = get_today_trade_count(config.TRADE_LOG_CSV, instrument_name, config.TIMEZONE, strategy_name=strat_name)
             self.daily_trade_counts[strat_name] = restored if isinstance(restored, dict) else {}
@@ -113,6 +113,7 @@ class InstrumentBot(threading.Thread):
         """
         Check if carry_forward is enabled for the specified strategy.
         Falls back to global config.CARRY_FORWARD if not explicitly set in instruments.json.
+        Intraday stock strategies (Strategy_24 or product_type == 'INTRADAY' or execution_mode == 'STOCK') default to False.
         """
         inst_cfg = self.get_strategy_instrument_config(strategy_name)
         if "carry_forward" in inst_cfg:
@@ -123,6 +124,11 @@ class InstrumentBot(threading.Thread):
                 return bool(val)
             if isinstance(val, str):
                 return val.strip().lower() in ("true", "1", "yes")
+
+        # Intraday stocks or Strategy_24 must never carry forward by default unless explicitly set
+        if strategy_name == "Strategy_24" or inst_cfg.get("product_type") == "INTRADAY" or (inst_cfg.get("execution_mode") == "STOCK" and strategy_name != "Strategy_23"):
+            return False
+
         return getattr(self.config, "CARRY_FORWARD", True)
 
     @staticmethod
@@ -204,6 +210,50 @@ class InstrumentBot(threading.Thread):
                     text += " " + " ".join(str(sub_v).lower() for sub_v in v.values() if isinstance(sub_v, (str, int, float)))
         margin_keywords = ['margin', 'insufficient', 'funds', 'shortfall', 'rms:rule', 'balance', 'limit exceeded', 'not enough balance']
         return any(k in text for k in margin_keywords)
+
+    def _verify_order_settlement(self, acc_api, order_resp: Any, wait_seconds: float = 0.6) -> Any:
+        """
+        Dhan API HTTP gateway immediately returns orderStatus='TRANSIT' upon receiving an order,
+        prior to RMS margin checks and exchange routing. This helper provides a brief settlement
+        window and polls the true post-RMS order status from Dhan so that asynchronous RMS margin
+        rejections are caught immediately at entry time rather than minutes later.
+        """
+        if not isinstance(order_resp, dict):
+            return order_resp
+            
+        order_id = str(order_resp.get('orderId') or (order_resp.get('data', {}).get('orderId') if isinstance(order_resp.get('data'), dict) else ''))
+        status = str(order_resp.get('orderStatus') or (order_resp.get('data', {}).get('orderStatus') if isinstance(order_resp.get('data'), dict) else '')).upper()
+        
+        if status == 'TRANSIT' and order_id and order_id != 'unknown':
+            if wait_seconds > 0:
+                time.sleep(wait_seconds)
+            try:
+                status_resp = acc_api._make_request(acc_api.dhan.get_order_by_id, order_id=order_id)
+                if status_resp and status_resp.get('status') == 'success':
+                    data = status_resp.get('data', {})
+                    if isinstance(data, list) and data:
+                        data = data[0]
+                    if isinstance(data, dict):
+                        real_status = str(data.get('orderStatus', '')).upper()
+                        if real_status in ['TRADED', 'PENDING', 'CANCELLED', 'REJECTED']:
+                            order_resp['orderStatus'] = real_status
+                            err_desc = data.get('omsErrorDescription') or data.get('remarks') or ''
+                            if err_desc:
+                                order_resp['omsErrorDescription'] = err_desc
+                            if real_status == 'REJECTED':
+                                order_resp['failed'] = True
+                                self.logger.warning(
+                                    f"[{self.name}] [FAST OMS VERIFIED] Order {order_id} transitioned from TRANSIT to REJECTED by broker RMS. "
+                                    f"Reason: {err_desc}"
+                                )
+                            elif real_status in ['TRADED', 'PENDING']:
+                                self.logger.info(
+                                    f"[{self.name}] [FAST OMS VERIFIED] Order {order_id} confirmed {real_status} on broker."
+                                )
+            except Exception as e:
+                self.logger.debug(f"[{self.name}] Fast OMS check error for {order_id}: {e}")
+                
+        return order_resp
 
     def _validate_gatekeeper_live(self, target_strike, option_type_str, is_short=False) -> bool:
         """
@@ -483,7 +533,7 @@ class InstrumentBot(threading.Thread):
                 today_date = now.date()
                 if self.current_trading_day != today_date:
                     self.current_trading_day = today_date
-                    for i in range(1, 24):
+                    for i in range(1, 25):
                         strat_name = f"Strategy_{i}"
                         self.daily_trade_counts[strat_name] = {}
                         self.daily_sl_counts[strat_name] = {}
@@ -654,7 +704,7 @@ class InstrumentBot(threading.Thread):
             
             # Find active strategies
             active_strategies = []
-            for i in range(1, 24):
+            for i in range(1, 25):
                 if getattr(self.config, f"ENABLE_STRATEGY_{i}", False):
                     active_strategies.append(f"Strategy_{i}")
             if not active_strategies:
@@ -674,6 +724,12 @@ class InstrumentBot(threading.Thread):
                 cooldown_time = self.strategy_cooldowns.get(s_name)
                 if cooldown_time and datetime.now(self.config.TIMEZONE) < cooldown_time:
                     self.logger.info(f"[{self.name}] [SKIP] Signal {signal.upper()} for strategy {s_name} ignored. Strategy is on cooldown until {cooldown_time.strftime('%H:%M:%S')}.")
+                    continue
+
+                # Dedicated strategy guardrail: if instrument specifies a dedicated strategy, ignore other strategies
+                target_strat = self.config.INSTRUMENTS.get(self.name, {}).get("strategy")
+                if target_strat and s_name != target_strat:
+                    self.logger.warning(f"[{self.name}] [SKIP] Signal {signal.upper()} from {s_name} ignored. Instrument is dedicated to {target_strat}.")
                     continue
                 
                 self.logger.info(f"!!! [{self.name}] SIGNAL: {signal.upper()} ({s_name}) !!!")
@@ -865,13 +921,20 @@ class InstrumentBot(threading.Thread):
                 acc_api = acc['api']
                 acc_config = acc.get('config', {})
                 
+                # Check allowed_strategies
+                allowed_strategies = acc_config.get('allowed_strategies')
+                clean_source = source.split(" (")[0].replace(" ", "_")
+                if allowed_strategies is not None and clean_source not in allowed_strategies:
+                    self.logger.debug(f"[{self.name}] [SKIP] '{acc_name}' restricted. Strategy '{clean_source}' not in allowed_strategies.")
+                    continue
+
                 # Check allowed_actions
                 allowed_actions = acc_config.get('allowed_actions')
                 if allowed_actions is not None and stock_action not in allowed_actions:
                     self.logger.debug(f"[{self.name}] [SKIP] '{acc_name}' restricted. {stock_action} not in allowed_actions.")
                     continue
                     
-            # Check allowed_instruments
+                # Check allowed_instruments
                 allowed_instruments = acc_config.get('allowed_instruments')
                 if allowed_instruments is not None and self.name not in allowed_instruments:
                     self.logger.debug(f"[{self.name}] [SKIP] '{acc_name}' restricted. Not in allowed_instruments.")
@@ -2264,6 +2327,7 @@ class InstrumentBot(threading.Thread):
                     if future:
                         try:
                             resp = future.result(timeout=15)
+                            resp = self._verify_order_settlement(dispatch['acc_api'], resp)
                             is_success = resp and not resp.get('failed', False) and resp.get('orderStatus') in ['PENDING', 'TRANSIT', 'TRADED', 'SUBMITTED', 'SUCCESS']
                             
                             if not is_success:
@@ -2312,6 +2376,7 @@ class InstrumentBot(threading.Thread):
                                             product_type=dispatch['inst_product_type'],
                                             ref_price=ltp
                                         )
+                                        fb_resp = self._verify_order_settlement(dispatch['acc_api'], fb_resp)
                                         if fb_resp and not fb_resp.get('failed', False) and fb_resp.get('orderStatus') in ['PENDING', 'TRANSIT', 'TRADED', 'SUBMITTED', 'SUCCESS']:
                                             self.logger.info(
                                                 f"[{self.name}] [{clean_source}] [MARGIN FALLBACK SUCCESS] Resized order filled at {fb_lots} lots ({fallback_qty} qty) for '{acc_name}'!"
@@ -2575,11 +2640,12 @@ class InstrumentBot(threading.Thread):
                             # EOD Auto Square-off check if carry_forward is False for this strategy
                             now_time = datetime.now(self.config.TIMEZONE).time()
                             strat_name = position.get('strategy', 'Strategy_3')
-                            if now_time >= self.config.SQ_OFF_TIME and not self.should_carry_forward(strat_name):
+                            is_intraday_pos = (position.get('product_type') == 'INTRADAY' or not self.should_carry_forward(strat_name))
+                            if (now_time >= self.config.RUN_END or now_time >= self.config.SQ_OFF_TIME) and is_intraday_pos:
                                 sym = open_broker_positions[sec_id].get('tradingSymbol', sec_id)
                                 net_qty = safe_int(open_broker_positions[sec_id].get('netQty', 0))
                                 abs_qty = abs(net_qty)
-                                self.logger.warning(f"[{self.name}] [EOD SQUAREOFF] Closing position {sym} (x{abs_qty}) on {acc_name}: strategy {strat_name} carry_forward is False.")
+                                self.logger.warning(f"[{self.name}] [EOD SQUAREOFF] Closing position {sym} (x{abs_qty}) on {acc_name}: intraday squareoff triggered (carry_forward=False or product=INTRADAY).")
                                 
                                 # Cancel pending orders for this contract
                                 try:
@@ -2626,19 +2692,38 @@ class InstrumentBot(threading.Thread):
                             if pos_exit_mode in ['SWING_CONTRACT', 'POINTS', 'ATR']:
                                 opt_seg = position.get('exchange_segment', 'NSE_FNO')
                                 contract_ltp = 0.0
-                                try:
-                                    sec_id_lookup = int(sec_id) if str(sec_id).isdigit() else sec_id
-                                    resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={opt_seg: [sec_id_lookup]})
-                                    if resp and isinstance(resp.get('data'), dict):
-                                        seg_data = resp['data'].get(opt_seg, {})
-                                        d = seg_data.get(str(sec_id), {}) or seg_data.get(sec_id_lookup, {}) if isinstance(seg_data, dict) else {}
-                                        contract_ltp = float(d.get('last_price', 0) or d.get('ltp', 0) or d.get('close', 0))
-                                except Exception as e:
-                                    self.logger.error(f"[{self.name}] Error fetching Contract LTP in monitor for {sec_id}: {e}")
+                                if hasattr(self.data_api, 'get_ltp'):
+                                    contract_ltp = self.data_api.get_ltp(sec_id, opt_seg)
+                                
+                                if contract_ltp <= 0:
+                                    try:
+                                        sec_id_lookup = int(sec_id) if str(sec_id).isdigit() else sec_id
+                                        resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={opt_seg: [sec_id_lookup]})
+                                        if resp and isinstance(resp, dict):
+                                            raw_d = resp.get('data', {})
+                                            if isinstance(raw_d, dict) and 'data' in raw_d and isinstance(raw_d['data'], dict):
+                                                raw_d = raw_d['data']
+                                            if isinstance(raw_d, dict):
+                                                seg_data = raw_d.get(opt_seg, {})
+                                                if isinstance(seg_data, dict):
+                                                    d = seg_data.get(str(sec_id), {}) or seg_data.get(sec_id_lookup, {})
+                                                    if isinstance(d, dict):
+                                                        contract_ltp = float(d.get('last_price', 0) or d.get('ltp', 0) or d.get('close', 0))
+                                    except Exception as e:
+                                        self.logger.error(f"[{self.name}] Error fetching Contract LTP in monitor for {sec_id}: {e}")
                                 
                                 if contract_ltp <= 0:
                                     contract_ltp = float(open_broker_positions[sec_id].get('lastPrice', 0) or open_broker_positions[sec_id].get('ltp', 0))
                                     
+                                if contract_ltp <= 0:
+                                    try:
+                                        opt_type = 'OPTIDX' if any(x in self.name.upper() for x in ['NIFTY', 'BANK', 'SENSEX']) else 'OPTSTK'
+                                        h_df = self.data_api.get_historical_data(str(sec_id), 1, opt_seg, opt_type)
+                                        if h_df is not None and not h_df.empty:
+                                            contract_ltp = float(h_df['close'].iloc[-1])
+                                    except Exception:
+                                        pass
+
                                 if contract_ltp <= 0:
                                     continue
                                     
@@ -2664,18 +2749,19 @@ class InstrumentBot(threading.Thread):
                                         else:
                                             trigger_level = None
 
+                                        contract_sym = position.get('symbol', sec_id)
                                         if trigger_level is not None:
                                             be_hit = False
                                             if action == 'BUY' and contract_ltp >= trigger_level:
                                                 position["opt_sl_price"] = max(position["opt_sl_price"], position["Entry_Price"])
                                                 position["Breakeven_Triggered"] = True
-                                                self.logger.info(f"[{self.name}] [BREAKEVEN SL TRIGGER] Moved SL to entry: {position['opt_sl_price']:.2f} (Contract LTP: {contract_ltp:.2f})")
+                                                self.logger.info(f"[{self.name}] [{contract_sym}] [BREAKEVEN SL TRIGGER] Moved SL to entry: {position['opt_sl_price']:.2f} (Contract LTP: {contract_ltp:.2f})")
                                                 updated = True
                                                 be_hit = True
                                             elif action == 'SELL' and contract_ltp <= trigger_level:
                                                 position["opt_sl_price"] = min(position["opt_sl_price"], position["Entry_Price"])
                                                 position["Breakeven_Triggered"] = True
-                                                self.logger.info(f"[{self.name}] [BREAKEVEN SL TRIGGER] Moved SL to entry: {position['opt_sl_price']:.2f} (Contract LTP: {contract_ltp:.2f})")
+                                                self.logger.info(f"[{self.name}] [{contract_sym}] [BREAKEVEN SL TRIGGER] Moved SL to entry: {position['opt_sl_price']:.2f} (Contract LTP: {contract_ltp:.2f})")
                                                 updated = True
                                                 be_hit = True
 
@@ -2684,10 +2770,10 @@ class InstrumentBot(threading.Thread):
                                                 super_oid = position.get('order_id')
                                                 if super_oid and acc_api:
                                                     try:
-                                                        target_sym = open_broker_positions.get(sec_id, {}).get('tradingSymbol', sec_id)
+                                                        target_sym = open_broker_positions.get(sec_id, {}).get('tradingSymbol', contract_sym)
                                                         mod_ok = acc_api.modify_super_order_sl(super_oid, position["Entry_Price"])
                                                         if mod_ok:
-                                                            self.logger.info(f"[{self.name}] [BREAKEVEN BROKER MODIFIED] Dhan STOP_LOSS_LEG for order {super_oid} modified to Entry Price ({position['Entry_Price']:.2f})!")
+                                                            self.logger.info(f"[{self.name}] [{contract_sym}] [BREAKEVEN BROKER MODIFIED] Dhan STOP_LOSS_LEG for order {super_oid} modified to Entry Price ({position['Entry_Price']:.2f})!")
                                                             if self.alert_manager:
                                                                 self.alert_manager.send_alert(
                                                                     f"🛡️ *Breakeven Protected on Dhan*\n"
@@ -2700,6 +2786,7 @@ class InstrumentBot(threading.Thread):
                                                     except Exception as e:
                                                         self.logger.error(f"[{self.name}] Failed to modify STOP_LOSS_LEG on Dhan for order {super_oid}: {e}")
 
+                                    contract_sym = position.get('symbol', sec_id)
                                     if action == 'BUY':
                                         if contract_ltp > position.get('opt_mfe', position.get('Entry_Price', contract_ltp)):
                                             position['opt_mfe'] = contract_ltp
@@ -2710,7 +2797,7 @@ class InstrumentBot(threading.Thread):
                                                 new_sl = position.get('opt_initial_sl', position.get('opt_sl_price')) + (steps * trail_jump)
                                                 if new_sl > position.get('opt_sl_price'):
                                                     position['opt_sl_price'] = new_sl
-                                                    self.logger.info(f"[{self.name}] [TRAILING SL UPDATE] New Contract SL: {new_sl:.2f} (Contract LTP: {contract_ltp:.2f})")
+                                                    self.logger.info(f"[{self.name}] [{contract_sym}] [TRAILING SL UPDATE] New Contract SL: {new_sl:.2f} (Contract LTP: {contract_ltp:.2f})")
                                                     updated = True
                                                     
                                         hit_sl = (contract_ltp <= position.get('opt_sl_price'))
@@ -2725,7 +2812,7 @@ class InstrumentBot(threading.Thread):
                                                 new_sl = position.get('opt_initial_sl', position.get('opt_sl_price')) - (steps * trail_jump)
                                                 if new_sl < position.get('opt_sl_price'):
                                                     position['opt_sl_price'] = new_sl
-                                                    self.logger.info(f"[{self.name}] [TRAILING SL UPDATE] New Contract SL: {new_sl:.2f} (Contract LTP: {contract_ltp:.2f})")
+                                                    self.logger.info(f"[{self.name}] [{contract_sym}] [TRAILING SL UPDATE] New Contract SL: {new_sl:.2f} (Contract LTP: {contract_ltp:.2f})")
                                                     updated = True
                                                     
                                         hit_sl = (contract_ltp >= position.get('opt_sl_price'))
@@ -2743,13 +2830,19 @@ class InstrumentBot(threading.Thread):
                                 spot_sec_id = self.config.INSTRUMENTS[self.name]['security_id']
                                 spot_seg = 'IDX_I' if self.TYPE != 'STOCK' else 'NSE_EQ'
                                 spot_ltp = 0.0
-                                try:
-                                    resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={spot_seg: [int(spot_sec_id)]})
-                                    if resp:
-                                        d = resp.get('data', {}).get(spot_seg, {}).get(str(spot_sec_id), {})
-                                        spot_ltp = float(d.get('last_price', 0) or d.get('ltp', 0))
-                                except Exception as e:
-                                    self.logger.error(f"[{self.name}] Error fetching Spot LTP in monitor: {e}")
+                                if hasattr(self.data_api, 'get_ltp'):
+                                    spot_ltp = self.data_api.get_ltp(spot_sec_id, spot_seg)
+                                if spot_ltp <= 0:
+                                    try:
+                                        resp = self.data_api._make_request(self.data_api.dhan.ohlc_data, securities={spot_seg: [int(spot_sec_id)]})
+                                        if resp and isinstance(resp, dict):
+                                            raw_d = resp.get('data', {})
+                                            if isinstance(raw_d, dict) and 'data' in raw_d and isinstance(raw_d['data'], dict):
+                                                raw_d = raw_d['data']
+                                            d = raw_d.get(spot_seg, {}).get(str(spot_sec_id), {}) or raw_d.get(spot_seg, {}).get(int(spot_sec_id), {}) if isinstance(raw_d, dict) else {}
+                                            spot_ltp = float(d.get('last_price', 0) or d.get('ltp', 0))
+                                    except Exception as e:
+                                        self.logger.error(f"[{self.name}] Error fetching Spot LTP in monitor: {e}")
                                     
                                 if spot_ltp <= 0:
                                     continue
@@ -3030,6 +3123,7 @@ class InstrumentBot(threading.Thread):
             order_status_val = None
             order_id = None
             if resp:
+                resp = self._verify_order_settlement(acc_api, resp)
                 order_id = str(resp.get('orderId') or (resp.get('data', {}).get('orderId') if isinstance(resp.get('data'), dict) else ''))
                 order_status_val = str(resp.get('orderStatus') or (resp.get('data', {}).get('orderStatus') if isinstance(resp.get('data'), dict) else ''))
 
@@ -3063,6 +3157,7 @@ class InstrumentBot(threading.Thread):
                         order_type="MARKET",
                         price=0.0
                     )
+                    fb_resp = self._verify_order_settlement(acc_api, fb_resp)
                     if fb_resp and not fb_resp.get('failed', False) and str(fb_resp.get('orderStatus', '')).upper() not in ['REJECTED', 'FAILED']:
                         resp = fb_resp
                         order_qty = fallback_qty

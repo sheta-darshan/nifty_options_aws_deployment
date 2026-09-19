@@ -31,7 +31,7 @@ all_strategy_trades = []
 
 for s_id in strategy_ids:
     config = BacktestConfig()
-    for i in range(1, 24):
+    for i in range(1, 25):
         setattr(config, f"ENABLE_STRATEGY_{i}", False)
         
     setattr(config, f"ENABLE_STRATEGY_{s_id}", True)

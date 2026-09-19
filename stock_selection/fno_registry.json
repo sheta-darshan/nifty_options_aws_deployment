@@ -1,0 +1,1262 @@
+{
+    "360ONE": {
+        "lot_size": 500,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "360ONE"
+    },
+    "ABB": {
+        "lot_size": 125,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ABB"
+    },
+    "ABCAPITAL": {
+        "lot_size": 3100,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ABCAPITAL"
+    },
+    "ADANIENSOL": {
+        "lot_size": 675,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ADANIENSOL"
+    },
+    "ADANIENT": {
+        "lot_size": 309,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ADANIENT"
+    },
+    "ADANIGREEN": {
+        "lot_size": 600,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ADANIGREEN"
+    },
+    "ADANIPORTS": {
+        "lot_size": 475,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ADANIPORTS"
+    },
+    "ADANIPOWER": {
+        "lot_size": 3550,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ADANIPOWER"
+    },
+    "ALKEM": {
+        "lot_size": 125,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ALKEM"
+    },
+    "AMBER": {
+        "lot_size": 100,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "AMBER"
+    },
+    "AMBUJACEM": {
+        "lot_size": 1200,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "AMBUJACEM"
+    },
+    "ANGELONE": {
+        "lot_size": 2500,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ANGELONE"
+    },
+    "APLAPOLLO": {
+        "lot_size": 350,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "APLAPOLLO"
+    },
+    "APOLLOHOSP": {
+        "lot_size": 125,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "APOLLOHOSP"
+    },
+    "ASHOKLEY": {
+        "lot_size": 5000,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ASHOKLEY"
+    },
+    "ASIANPAINT": {
+        "lot_size": 250,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ASIANPAINT"
+    },
+    "ASTRAL": {
+        "lot_size": 425,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ASTRAL"
+    },
+    "ATHERENERG": {
+        "lot_size": 375,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ATHERENERG"
+    },
+    "AUBANK": {
+        "lot_size": 1000,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "AUBANK"
+    },
+    "AUROPHARMA": {
+        "lot_size": 550,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "AUROPHARMA"
+    },
+    "AXISBANK": {
+        "lot_size": 625,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "AXISBANK"
+    },
+    "BAJAJ-AUTO": {
+        "lot_size": 75,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BAJAJ-AUTO"
+    },
+    "BAJAJFINSV": {
+        "lot_size": 300,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BAJAJFINSV"
+    },
+    "BAJAJHLDNG": {
+        "lot_size": 75,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BAJAJHLDNG"
+    },
+    "BAJFINANCE": {
+        "lot_size": 750,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BAJFINANCE"
+    },
+    "BANDHANBNK": {
+        "lot_size": 3600,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BANDHANBNK"
+    },
+    "BANKBARODA": {
+        "lot_size": 2925,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BANKBARODA"
+    },
+    "BANKINDIA": {
+        "lot_size": 5200,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BANKINDIA"
+    },
+    "BDL": {
+        "lot_size": 425,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BDL"
+    },
+    "BEL": {
+        "lot_size": 1425,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BEL"
+    },
+    "BHARATFORG": {
+        "lot_size": 500,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BHARATFORG"
+    },
+    "BHARTIARTL": {
+        "lot_size": 475,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BHARTIARTL"
+    },
+    "BHEL": {
+        "lot_size": 2625,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BHEL"
+    },
+    "BIOCON": {
+        "lot_size": 2500,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BIOCON"
+    },
+    "BLUESTARCO": {
+        "lot_size": 325,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BLUESTARCO"
+    },
+    "BOSCHLTD": {
+        "lot_size": 25,
+        "strike_step": 500.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BOSCHLTD"
+    },
+    "BPCL": {
+        "lot_size": 1975,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BPCL"
+    },
+    "BRITANNIA": {
+        "lot_size": 125,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BRITANNIA"
+    },
+    "BSE": {
+        "lot_size": 200,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "BSE"
+    },
+    "CAMS": {
+        "lot_size": 825,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CAMS"
+    },
+    "CANBK": {
+        "lot_size": 6750,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CANBK"
+    },
+    "CDSL": {
+        "lot_size": 475,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CDSL"
+    },
+    "CGPOWER": {
+        "lot_size": 850,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CGPOWER"
+    },
+    "CHOLAFIN": {
+        "lot_size": 625,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CHOLAFIN"
+    },
+    "CIPLA": {
+        "lot_size": 425,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CIPLA"
+    },
+    "COALINDIA": {
+        "lot_size": 1350,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "COALINDIA"
+    },
+    "COCHINSHIP": {
+        "lot_size": 400,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "COCHINSHIP"
+    },
+    "COFORGE": {
+        "lot_size": 475,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "COFORGE"
+    },
+    "COLPAL": {
+        "lot_size": 275,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "COLPAL"
+    },
+    "CONCOR": {
+        "lot_size": 1250,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CONCOR"
+    },
+    "CROMPTON": {
+        "lot_size": 2150,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CROMPTON"
+    },
+    "CUMMINSIND": {
+        "lot_size": 200,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "CUMMINSIND"
+    },
+    "DABUR": {
+        "lot_size": 1250,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "DABUR"
+    },
+    "DELHIVERY": {
+        "lot_size": 2075,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "DELHIVERY"
+    },
+    "DIVISLAB": {
+        "lot_size": 100,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "DIVISLAB"
+    },
+    "DIXON": {
+        "lot_size": 50,
+        "strike_step": 250.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "DIXON"
+    },
+    "DLF": {
+        "lot_size": 950,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "DLF"
+    },
+    "DMART": {
+        "lot_size": 150,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "DMART"
+    },
+    "DRREDDY": {
+        "lot_size": 625,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "DRREDDY"
+    },
+    "EICHERMOT": {
+        "lot_size": 100,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "EICHERMOT"
+    },
+    "ETERNAL": {
+        "lot_size": 2425,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ETERNAL"
+    },
+    "FEDERALBNK": {
+        "lot_size": 2500,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "FEDERALBNK"
+    },
+    "FORCEMOT": {
+        "lot_size": 25,
+        "strike_step": 500.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "FORCEMOT"
+    },
+    "FORTIS": {
+        "lot_size": 775,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "FORTIS"
+    },
+    "GAIL": {
+        "lot_size": 3550,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GAIL"
+    },
+    "GLENMARK": {
+        "lot_size": 375,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GLENMARK"
+    },
+    "GMRAIRPORT": {
+        "lot_size": 6975,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GMRAIRPORT"
+    },
+    "GODFRYPHLP": {
+        "lot_size": 275,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GODFRYPHLP"
+    },
+    "GODREJCP": {
+        "lot_size": 500,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GODREJCP"
+    },
+    "GODREJPROP": {
+        "lot_size": 325,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GODREJPROP"
+    },
+    "GRASIM": {
+        "lot_size": 250,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GRASIM"
+    },
+    "GVT&D": {
+        "lot_size": 125,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "GVT&D"
+    },
+    "HAL": {
+        "lot_size": 150,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HAL"
+    },
+    "HAVELLS": {
+        "lot_size": 500,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HAVELLS"
+    },
+    "HCLTECH": {
+        "lot_size": 400,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HCLTECH"
+    },
+    "HDFCAMC": {
+        "lot_size": 300,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HDFCAMC"
+    },
+    "HDFCBANK": {
+        "lot_size": 650,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HDFCBANK"
+    },
+    "HDFCLIFE": {
+        "lot_size": 1100,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HDFCLIFE"
+    },
+    "HEROMOTOCO": {
+        "lot_size": 150,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HEROMOTOCO"
+    },
+    "HINDALCO": {
+        "lot_size": 700,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HINDALCO"
+    },
+    "HINDPETRO": {
+        "lot_size": 2025,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HINDPETRO"
+    },
+    "HINDUNILVR": {
+        "lot_size": 300,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HINDUNILVR"
+    },
+    "HINDZINC": {
+        "lot_size": 1225,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HINDZINC"
+    },
+    "HYUNDAI": {
+        "lot_size": 275,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "HYUNDAI"
+    },
+    "ICICIBANK": {
+        "lot_size": 700,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ICICIBANK"
+    },
+    "ICICIGI": {
+        "lot_size": 325,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ICICIGI"
+    },
+    "ICICIPRULI": {
+        "lot_size": 925,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ICICIPRULI"
+    },
+    "IDEA": {
+        "lot_size": 71475,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "IDEA"
+    },
+    "IDFCFIRSTB": {
+        "lot_size": 9275,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "IDFCFIRSTB"
+    },
+    "IEX": {
+        "lot_size": 4350,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "IEX"
+    },
+    "INDHOTEL": {
+        "lot_size": 1000,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "INDHOTEL"
+    },
+    "INDIANB": {
+        "lot_size": 1000,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "INDIANB"
+    },
+    "INDIGO": {
+        "lot_size": 150,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "INDIGO"
+    },
+    "INDUSINDBK": {
+        "lot_size": 700,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "INDUSINDBK"
+    },
+    "INDUSTOWER": {
+        "lot_size": 1700,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "INDUSTOWER"
+    },
+    "INFY": {
+        "lot_size": 400,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "INFY"
+    },
+    "INOXWIND": {
+        "lot_size": 6400,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "INOXWIND"
+    },
+    "IOC": {
+        "lot_size": 4875,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "IOC"
+    },
+    "IREDA": {
+        "lot_size": 4525,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "IREDA"
+    },
+    "IRFC": {
+        "lot_size": 5425,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "IRFC"
+    },
+    "ITC": {
+        "lot_size": 1725,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ITC"
+    },
+    "JINDALSTEL": {
+        "lot_size": 625,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "JINDALSTEL"
+    },
+    "JIOFIN": {
+        "lot_size": 2350,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "JIOFIN"
+    },
+    "JSWENERGY": {
+        "lot_size": 1075,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "JSWENERGY"
+    },
+    "JSWSTEEL": {
+        "lot_size": 675,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "JSWSTEEL"
+    },
+    "JUBLFOOD": {
+        "lot_size": 1250,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "JUBLFOOD"
+    },
+    "KALYANKJIL": {
+        "lot_size": 1350,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "KALYANKJIL"
+    },
+    "KAYNES": {
+        "lot_size": 150,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "KAYNES"
+    },
+    "KEI": {
+        "lot_size": 175,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "KEI"
+    },
+    "KFINTECH": {
+        "lot_size": 575,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "KFINTECH"
+    },
+    "KOTAKBANK": {
+        "lot_size": 2000,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "KOTAKBANK"
+    },
+    "KPITTECH": {
+        "lot_size": 775,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "KPITTECH"
+    },
+    "LAURUSLABS": {
+        "lot_size": 850,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LAURUSLABS"
+    },
+    "LICHSGFIN": {
+        "lot_size": 1000,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LICHSGFIN"
+    },
+    "LICI": {
+        "lot_size": 1400,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LICI"
+    },
+    "LODHA": {
+        "lot_size": 625,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LODHA"
+    },
+    "LT": {
+        "lot_size": 175,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LT"
+    },
+    "LTF": {
+        "lot_size": 2250,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LTF"
+    },
+    "LTM": {
+        "lot_size": 150,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LTM"
+    },
+    "LUPIN": {
+        "lot_size": 425,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "LUPIN"
+    },
+    "M&M": {
+        "lot_size": 200,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "M&M"
+    },
+    "MAHABANK": {
+        "lot_size": 6500,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MAHABANK"
+    },
+    "MANAPPURAM": {
+        "lot_size": 3000,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MANAPPURAM"
+    },
+    "MANKIND": {
+        "lot_size": 250,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MANKIND"
+    },
+    "MARICO": {
+        "lot_size": 1200,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MARICO"
+    },
+    "MARUTI": {
+        "lot_size": 50,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MARUTI"
+    },
+    "MAXHEALTH": {
+        "lot_size": 525,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MAXHEALTH"
+    },
+    "MAZDOCK": {
+        "lot_size": 225,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MAZDOCK"
+    },
+    "MCX": {
+        "lot_size": 225,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MCX"
+    },
+    "MFSL": {
+        "lot_size": 400,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MFSL"
+    },
+    "MOTHERSON": {
+        "lot_size": 6150,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MOTHERSON"
+    },
+    "MOTILALOFS": {
+        "lot_size": 775,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MOTILALOFS"
+    },
+    "MPHASIS": {
+        "lot_size": 275,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MPHASIS"
+    },
+    "MUTHOOTFIN": {
+        "lot_size": 275,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "MUTHOOTFIN"
+    },
+    "NAM-INDIA": {
+        "lot_size": 625,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NAM-INDIA"
+    },
+    "NATIONALUM": {
+        "lot_size": 1875,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NATIONALUM"
+    },
+    "NAUKRI": {
+        "lot_size": 550,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NAUKRI"
+    },
+    "NBCC": {
+        "lot_size": 6500,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NBCC"
+    },
+    "NESTLEIND": {
+        "lot_size": 500,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NESTLEIND"
+    },
+    "NHPC": {
+        "lot_size": 6950,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NHPC"
+    },
+    "NMDC": {
+        "lot_size": 6750,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NMDC"
+    },
+    "NTPC": {
+        "lot_size": 1500,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NTPC"
+    },
+    "NYKAA": {
+        "lot_size": 3125,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "NYKAA"
+    },
+    "OBEROIRLTY": {
+        "lot_size": 350,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "OBEROIRLTY"
+    },
+    "OFSS": {
+        "lot_size": 100,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "OFSS"
+    },
+    "OIL": {
+        "lot_size": 1400,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "OIL"
+    },
+    "ONGC": {
+        "lot_size": 2250,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ONGC"
+    },
+    "PAGEIND": {
+        "lot_size": 20,
+        "strike_step": 500.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PAGEIND"
+    },
+    "PATANJALI": {
+        "lot_size": 1075,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PATANJALI"
+    },
+    "PAYTM": {
+        "lot_size": 725,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PAYTM"
+    },
+    "PERSISTENT": {
+        "lot_size": 125,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PERSISTENT"
+    },
+    "PETRONET": {
+        "lot_size": 1900,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PETRONET"
+    },
+    "PFC": {
+        "lot_size": 1300,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PFC"
+    },
+    "PGEL": {
+        "lot_size": 950,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PGEL"
+    },
+    "PHOENIXLTD": {
+        "lot_size": 350,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PHOENIXLTD"
+    },
+    "PIDILITIND": {
+        "lot_size": 500,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PIDILITIND"
+    },
+    "PIIND": {
+        "lot_size": 175,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PIIND"
+    },
+    "PNB": {
+        "lot_size": 8000,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PNB"
+    },
+    "PNBHOUSING": {
+        "lot_size": 650,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PNBHOUSING"
+    },
+    "POLICYBZR": {
+        "lot_size": 350,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "POLICYBZR"
+    },
+    "POLYCAB": {
+        "lot_size": 125,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "POLYCAB"
+    },
+    "POWERGRID": {
+        "lot_size": 1900,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "POWERGRID"
+    },
+    "POWERINDIA": {
+        "lot_size": 25,
+        "strike_step": 500.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "POWERINDIA"
+    },
+    "PREMIERENE": {
+        "lot_size": 650,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PREMIERENE"
+    },
+    "PRESTIGE": {
+        "lot_size": 450,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "PRESTIGE"
+    },
+    "RADICO": {
+        "lot_size": 150,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "RADICO"
+    },
+    "RBLBANK": {
+        "lot_size": 3175,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "RBLBANK"
+    },
+    "RECLTD": {
+        "lot_size": 1575,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "RECLTD"
+    },
+    "RELIANCE": {
+        "lot_size": 500,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "RELIANCE"
+    },
+    "RVNL": {
+        "lot_size": 1925,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "RVNL"
+    },
+    "SAGILITY": {
+        "lot_size": 12000,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SAGILITY"
+    },
+    "SAIL": {
+        "lot_size": 4700,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SAIL"
+    },
+    "SBICARD": {
+        "lot_size": 800,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SBICARD"
+    },
+    "SBILIFE": {
+        "lot_size": 375,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SBILIFE"
+    },
+    "SBIN": {
+        "lot_size": 750,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SBIN"
+    },
+    "SHREECEM": {
+        "lot_size": 25,
+        "strike_step": 250.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SHREECEM"
+    },
+    "SHRIRAMFIN": {
+        "lot_size": 825,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SHRIRAMFIN"
+    },
+    "SIEMENS": {
+        "lot_size": 175,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SIEMENS"
+    },
+    "SOLARINDS": {
+        "lot_size": 50,
+        "strike_step": 250.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SOLARINDS"
+    },
+    "SONACOMS": {
+        "lot_size": 1225,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SONACOMS"
+    },
+    "SRF": {
+        "lot_size": 200,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SRF"
+    },
+    "SUNPHARMA": {
+        "lot_size": 350,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SUNPHARMA"
+    },
+    "SUPREMEIND": {
+        "lot_size": 175,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SUPREMEIND"
+    },
+    "SUZLON": {
+        "lot_size": 12700,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SUZLON"
+    },
+    "SWIGGY": {
+        "lot_size": 1825,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "SWIGGY"
+    },
+    "TATACONSUM": {
+        "lot_size": 550,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TATACONSUM"
+    },
+    "TATAELXSI": {
+        "lot_size": 125,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TATAELXSI"
+    },
+    "TATAPOWER": {
+        "lot_size": 1450,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TATAPOWER"
+    },
+    "TATASTEEL": {
+        "lot_size": 2750,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TATASTEEL"
+    },
+    "TCS": {
+        "lot_size": 225,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TCS"
+    },
+    "TECHM": {
+        "lot_size": 600,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TECHM"
+    },
+    "TIINDIA": {
+        "lot_size": 200,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TIINDIA"
+    },
+    "TITAN": {
+        "lot_size": 175,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TITAN"
+    },
+    "TMPV": {
+        "lot_size": 1600,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TMPV"
+    },
+    "TORNTPHARM": {
+        "lot_size": 125,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TORNTPHARM"
+    },
+    "TRENT": {
+        "lot_size": 225,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TRENT"
+    },
+    "TVSMOTOR": {
+        "lot_size": 175,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "TVSMOTOR"
+    },
+    "ULTRACEMCO": {
+        "lot_size": 50,
+        "strike_step": 100.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ULTRACEMCO"
+    },
+    "UNIONBANK": {
+        "lot_size": 4425,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "UNIONBANK"
+    },
+    "UNITDSPR": {
+        "lot_size": 400,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "UNITDSPR"
+    },
+    "UNOMINDA": {
+        "lot_size": 550,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "UNOMINDA"
+    },
+    "UPL": {
+        "lot_size": 1355,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "UPL"
+    },
+    "VBL": {
+        "lot_size": 1275,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "VBL"
+    },
+    "VEDL": {
+        "lot_size": 1150,
+        "strike_step": 5.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "VEDL"
+    },
+    "VMM": {
+        "lot_size": 4850,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "VMM"
+    },
+    "VOLTAS": {
+        "lot_size": 375,
+        "strike_step": 20.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "VOLTAS"
+    },
+    "WAAREEENER": {
+        "lot_size": 175,
+        "strike_step": 50.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "WAAREEENER"
+    },
+    "WIPRO": {
+        "lot_size": 3000,
+        "strike_step": 2.5,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "WIPRO"
+    },
+    "YESBANK": {
+        "lot_size": 31100,
+        "strike_step": 1.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "YESBANK"
+    },
+    "ZYDUSLIFE": {
+        "lot_size": 900,
+        "strike_step": 10.0,
+        "option_segment": "NSE_FNO",
+        "fno_prefix": "ZYDUSLIFE"
+    }
+}

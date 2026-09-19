@@ -52,6 +52,7 @@ strike_step_history.json
 backups/
 *.bak
 *.bak_*
+*.full_bak
 instruments.json.bak*
 
 # ===========================
@@ -70,6 +71,9 @@ gemini-code-*.py
 # ===========================
 stock_selection/data/
 stock_selection/paper_trade_log.csv
+stock_benchmark_scorecard.csv
+universe_*.json
+excluded_symbols.json
 *_trades.csv
 *_trade_log.csv
 *mining_results.csv

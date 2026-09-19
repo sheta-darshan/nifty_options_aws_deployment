@@ -43,7 +43,7 @@ AI agents MUST obey these non-negotiable repository rules:
    - ALWAYS run shell/Python commands using `..\venv\Scripts\python.exe` on Windows.
    - NEVER suggest or execute Docker commands or reliance on Docker containers.
 2. **Strategy Range Loop Rule:**
-   - All strategy registration loops, configuration registries, and backtest runner loops MUST dynamically iterate across all registered strategies (`range(1, 24)` covering strategies 1-23 + BTST).
+   - All strategy registration loops, configuration registries, and backtest runner loops MUST dynamically iterate across all registered strategies (`range(1, 25)` covering strategies 1-24 + BTST).
 3. **Database Driver Convention:**
    - `DATABASE_URL` uses `asyncpg` (async driver) for FastAPI.
    - `DB_SYNC_URL` uses `psycopg2` (sync driver) for Alembic migrations.

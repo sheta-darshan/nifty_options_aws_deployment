@@ -23,6 +23,7 @@ API_TOKEN = os.getenv("DHAN_API_TOKEN", "").strip().strip("'").strip('"')
 SCRIP_MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
 SCRIP_MASTER_CACHE = os.path.join(BASE_DIR, "dhan_equity_master_cache.csv")
 EQUITY_LIST_FILE = os.path.join(BASE_DIR, "EQUITY_L.csv")
+EXCLUDED_SYMBOLS_FILE = os.path.join(BASE_DIR, "excluded_symbols.json")
 HOLIDAYS_FILE = os.path.join(BASE_DIR, "holidays_cache.json")
 
 KNOWN_INDICES = {
@@ -211,6 +212,16 @@ def get_target_symbols(args_symbols=None, csv_path=EQUITY_LIST_FILE, limit=None,
 
         stock_symbols = df_eq[sym_col].astype(str).str.strip().str.upper().tolist()
         stock_symbols = [s for s in stock_symbols if s and s != 'NAN']
+
+        # Exclude blacklisted/illiquid instruments
+        if os.path.exists(EXCLUDED_SYMBOLS_FILE):
+            try:
+                with open(EXCLUDED_SYMBOLS_FILE, "r") as f:
+                    excl_data = json.load(f)
+                    excl_set = set(s.upper() for s in excl_data.get("symbols", []))
+                    stock_symbols = [s for s in stock_symbols if s not in excl_set]
+            except Exception:
+                pass
 
     if limit and limit > 0:
         stock_symbols = stock_symbols[:limit]
