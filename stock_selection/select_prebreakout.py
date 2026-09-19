@@ -528,7 +528,8 @@ def run_prebreakout_selector(top_k: int = 5, rotate: bool = False, min_score: fl
                              universe: str = "top500", direction: str = "both",
                              top_k_buy: int = None, top_k_sell: int = None,
                              capital: float = 100000.0, leverage: float = 5.0,
-                             execution_mode: str = "hybrid", fno_only: bool = False):
+                             execution_mode: str = "hybrid", fno_only: bool = False,
+                             sizing_mode: str = "fixed"):
     dir_str = direction.upper()
     mode_str = execution_mode.upper()
     title_dir = "BREAKDOWN (SHORT)" if dir_str == "SELL" else ("BIDIRECTIONAL (LONG & SHORT)" if dir_str == "BOTH" else "BREAKOUT (LONG)")
@@ -730,6 +731,14 @@ def run_prebreakout_selector(top_k: int = 5, rotate: bool = False, min_score: fl
                     opt_tp = round(max(2.0, tp_pts * 0.50), 2)
                     opt_be = round(max(1.0, be_pts * 0.50), 2)
 
+                    if sizing_mode == "capital":
+                        est_prem = max(0.5, trig_px * 0.025)
+                        cost_per_lot = est_prem * lot_sz
+                        alloc = capital / max(1, len(top_candidates))
+                        opt_lots = max(1, int(alloc / max(1.0, cost_per_lot)))
+                    else:
+                        opt_lots = 1
+
                     item_dict = {
                         "security_id": int(sec_id) if sec_id else int(inst_data.get(sym, {}).get("security_id", 0)),
                         "type": "STOCK",
@@ -739,8 +748,8 @@ def run_prebreakout_selector(top_k: int = 5, rotate: bool = False, min_score: fl
                         "product_type": "INTRADAY",
                         "lot_size": lot_sz,
                         "strike_step": step,
-                        "num_lots_buy": 1,
-                        "num_lots_sell": 1,
+                        "num_lots_buy": opt_lots,
+                        "num_lots_sell": opt_lots,
                         "leg_mode": "BUY",
                         "allowed_actions": ["BUY"],
                         "direction": side,
@@ -758,8 +767,11 @@ def run_prebreakout_selector(top_k: int = 5, rotate: bool = False, min_score: fl
                     opt_count += 1
                 else:
                     # Option B: 5x MIS Cash Equity Execution
-                    effective_capital = capital * leverage
-                    shares = max(1, int(effective_capital / trig_px))
+                    if sizing_mode == "capital":
+                        effective_capital = capital * leverage
+                        shares = max(1, int(effective_capital / trig_px))
+                    else:
+                        shares = 1
 
                     item_dict = {
                         "security_id": int(sec_id) if sec_id else int(inst_data.get(sym, {}).get("security_id", 0)),
@@ -821,6 +833,8 @@ if __name__ == "__main__":
     parser.add_argument("--execution-mode", type=str, default="hybrid", choices=["hybrid", "stock", "option"],
                         help="Execution routing: hybrid (default: F&O options for F&O stocks, 5x MIS for cash), stock, or option")
     parser.add_argument("--fno-only", action="store_true", help="Restrict scan exclusively to 199 NSE F&O stocks")
+    parser.add_argument("--sizing-mode", type=str, default="fixed", choices=["fixed", "capital"],
+                        help="Position sizing mode: 'fixed' (Option A: 1 lot/1 share) or 'capital' (Option B: dynamically sized to --capital)")
     args = parser.parse_args()
 
     run_prebreakout_selector(
@@ -834,5 +848,6 @@ if __name__ == "__main__":
         capital=args.capital,
         leverage=args.leverage,
         execution_mode=args.execution_mode,
-        fno_only=args.fno_only
+        fno_only=args.fno_only,
+        sizing_mode=args.sizing_mode
     )

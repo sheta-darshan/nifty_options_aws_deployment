@@ -274,12 +274,18 @@ def main():
     parser.add_argument("--direction", choices=["both", "long", "short"], default="both", help="Selection side: both, long, or short")
     parser.add_argument("--top-k", "-k", type=int, default=3, help="Number of top candidates per direction (default: 3)")
     parser.add_argument("--universe", choices=["fno", "top500", "all"], default="fno", help="Universe scope (default: fno - 195 liquid F&O stocks)")
+    parser.add_argument("--fno-only", action="store_true", help="Filter universe exclusively for F&O stocks (alias for --universe fno)")
     parser.add_argument("--execution-mode", choices=["hybrid", "option", "stock"], default="hybrid", help="Execution routing mode")
     parser.add_argument("--capital", type=float, default=100000.0, help="Total account capital allocation (default: 100,000)")
     parser.add_argument("--leverage", type=float, default=5.0, help="Cash intraday MIS leverage (default: 5.0x)")
     parser.add_argument("--rotate", action="store_true", help="Rotate top selections into instruments.json")
     parser.add_argument("--mode", choices=["PAPER", "LIVE"], default="LIVE", help="Deployment mode: PAPER or LIVE (default: LIVE)")
+    parser.add_argument("--sizing-mode", choices=["fixed", "capital"], default="fixed",
+                        help="Position sizing mode: 'fixed' (Option A: 1 lot/1 share) or 'capital' (Option B: dynamically sized to --capital)")
     args = parser.parse_args()
+
+    if args.fno_only:
+        args.universe = "fno"
 
     print("=" * 125)
     print("      INSTITUTIONAL TRUE DUAL-HEAD QUANTITATIVE STOCK SELECTION & ROTATION")
@@ -472,6 +478,14 @@ def main():
                     opt_tp = round(max(2.0, tp_pts * 0.50), 2)
                     opt_be = round(max(1.0, be_pts * 0.50), 2)
 
+                    if args.sizing_mode == "capital":
+                        est_prem = max(0.5, trig_px * 0.025)
+                        cost_per_lot = est_prem * lot_sz
+                        alloc = args.capital / max(1, len(top_candidates))
+                        opt_lots = max(1, int(alloc / max(1.0, cost_per_lot)))
+                    else:
+                        opt_lots = 1
+
                     item_dict = {
                         "security_id": int(sec_id) if sec_id else int(inst_data.get(sym, {}).get("security_id", 0)),
                         "type": "STOCK",
@@ -481,8 +495,8 @@ def main():
                         "product_type": "INTRADAY",
                         "lot_size": lot_sz,
                         "strike_step": step,
-                        "num_lots_buy": 1,
-                        "num_lots_sell": 1,
+                        "num_lots_buy": opt_lots,
+                        "num_lots_sell": opt_lots,
                         "leg_mode": "BUY",
                         "allowed_actions": ["BUY"],
                         "direction": side,
@@ -500,8 +514,11 @@ def main():
                     opt_count += 1
                 else:
                     # 5x MIS Cash Equity Execution
-                    eff_capital = (args.capital / max(1, len(top_candidates))) * args.leverage
-                    shares = max(1, int(eff_capital / trig_px))
+                    if args.sizing_mode == "capital":
+                        eff_capital = (args.capital / max(1, len(top_candidates))) * args.leverage
+                        shares = max(1, int(eff_capital / trig_px))
+                    else:
+                        shares = 1
 
                     item_dict = {
                         "security_id": int(sec_id) if sec_id else int(inst_data.get(sym, {}).get("security_id", 0)),
@@ -510,8 +527,9 @@ def main():
                         "execution_mode": "STOCK",
                         "exchange_segment": "NSE_EQ",
                         "product_type": "INTRADAY",
-                        "num_lots_buy": shares,
-                        "num_lots_sell": shares,
+                        "num_lots_buy": 1,
+                        "num_lots_sell": 1,
+                        "stock_qty_override": shares,
                         "allowed_actions": [side],
                         "direction": side,
                         "rotated_joint": True,

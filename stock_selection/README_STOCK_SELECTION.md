@@ -251,11 +251,23 @@ Both engines feature isolated rotation tags to allow simultaneous live deploymen
 
 ### Recommended Daily EOD Automation (15:35 IST Daily)
 
+#### Mode 1: Option A (Conservative 1 Fixed Lot / 1 Share - Default)
+Restricts risk to ₹8,000–₹25,000 per setup by trading strictly 1 contract lot or 1 share:
 ```powershell
-# 1. Rotate 2 structural base contraction picks (Minervini VCP + TTM Squeeze):
-..\venv\Scripts\python.exe stock_selection/select_prebreakout.py --direction both --top-k 2 --rotate --execution-mode hybrid
+# 1. Base contraction picks (1 lot/share):
+..\venv\Scripts\python.exe stock_selection/select_prebreakout.py --direction both --top-k 2 --rotate --execution-mode hybrid --sizing-mode fixed
 
-# 2. Rotate 2 quantitative momentum expansion picks (Dual-Head ML):
-..\venv\Scripts\python.exe stock_selection/select_joint.py --direction both --top-k 2 --rotate --execution-mode hybrid
+# 2. Dual-Head ML momentum picks (1 lot/share):
+..\venv\Scripts\python.exe stock_selection/select_joint.py --direction both --top-k 2 --rotate --execution-mode hybrid --sizing-mode fixed
+```
+
+#### Mode 2: Option B (Dynamic Capital Allocation - Scaled Lots)
+Dynamically sizes whole lots and cash shares to deploy up to `--capital` (e.g. ₹1,00,000) per setup:
+```powershell
+# 1. Base contraction picks (scaled to Rs. 100,000 per setup):
+..\venv\Scripts\python.exe stock_selection/select_prebreakout.py --direction both --top-k 2 --rotate --execution-mode hybrid --sizing-mode capital --capital 100000
+
+# 2. Dual-Head ML momentum picks (scaled to Rs. 100,000 per setup):
+..\venv\Scripts\python.exe stock_selection/select_joint.py --direction both --top-k 2 --rotate --execution-mode hybrid --sizing-mode capital --capital 100000
 ```
 The live execution bot (`live_trade_fixed.py`) hot-reloads `instruments.json` every 5 minutes and trades both streams concurrently.
