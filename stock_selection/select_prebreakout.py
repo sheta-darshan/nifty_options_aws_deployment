@@ -433,15 +433,15 @@ def evaluate_stock_coiling(symbol: str, nifty_5d_map: dict, direction: str = "bu
             trigger_px = round(h + 0.05, 2)
             sl_px = round(trigger_px - 0.90 * atr, 2)
             sl_pct = (trigger_px - sl_px) / trigger_px * 100.0
-            be_trigger = round(trigger_px + 0.65 * atr, 2)
-            target_px = round(trigger_px + 1.15 * atr, 2)
+            be_trigger = round(trigger_px + 0.50 * atr, 2)
+            target_px = round(trigger_px + 1.35 * atr, 2)
             target_pct = (target_px - trigger_px) / trigger_px * 100.0
         else:
             trigger_px = round(l - 0.05, 2)
             sl_px = round(trigger_px + 0.90 * atr, 2)
             sl_pct = (sl_px - trigger_px) / trigger_px * 100.0
-            be_trigger = round(trigger_px - 0.65 * atr, 2)
-            target_px = round(trigger_px - 1.15 * atr, 2)
+            be_trigger = round(trigger_px - 0.50 * atr, 2)
+            target_px = round(trigger_px - 1.35 * atr, 2)
             target_pct = (trigger_px - target_px) / trigger_px * 100.0
 
         return {

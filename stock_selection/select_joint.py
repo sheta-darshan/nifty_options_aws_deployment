@@ -222,14 +222,14 @@ def evaluate_single_stock(args):
         # Long Setup: Breakout above Day High + 0.05
         trigger_long = round(day_high + 0.05, 2)
         sl_long = round(trigger_long - 0.90 * atr_14, 2)
-        be_long = round(trigger_long + 0.65 * atr_14, 2)
-        tp_long = round(trigger_long + 1.15 * atr_14, 2)
+        be_long = round(trigger_long + 0.50 * atr_14, 2)
+        tp_long = round(trigger_long + 1.35 * atr_14, 2)
 
         # Short Setup: Breakdown below Day Low - 0.05
         trigger_short = round(day_low - 0.05, 2)
         sl_short = round(trigger_short + 0.90 * atr_14, 2)
-        be_short = round(trigger_short - 0.65 * atr_14, 2)
-        tp_short = round(trigger_short - 1.15 * atr_14, 2)
+        be_short = round(trigger_short - 0.50 * atr_14, 2)
+        tp_short = round(trigger_short - 1.35 * atr_14, 2)
 
         dist_ema20 = float(latest_features.get('dist_ema20', 0.0))
         dist_ema50 = float(latest_features.get('dist_ema50', 0.0))
